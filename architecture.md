@@ -436,6 +436,14 @@ Agent runtime stack owned by Alina and Sofia:
 - async tool execution
 - optional FastAPI or another small HTTP layer for internal communication with Spring Boot
 
+LLM provider integration is owned by the AI runtime team:
+
+- the Python agent-service reads `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY`
+- the Python agent-service calls the external LLM provider such as Claude API
+- the Python agent-service owns prompt formatting, model adapter logic, native tool-use integration, and LLM response parsing
+- the Spring Boot backend must not call Claude/OpenAI directly for normal agent execution
+- the Next.js frontend must never receive or store `LLM_API_KEY`
+
 Current agent runtime files:
 
 - `apps/agent-service/app` contains the Python tool layer and should become the LangGraph agent runtime.
@@ -763,6 +771,9 @@ Core rule:
 - the frontend calls only Spring Boot routes under `/api/v1`
 - Spring Boot owns persistence, validation, public API routes, and SSE relay
 - Python agent-service owns agent reasoning, tool execution, and internal event generation
+- Python agent-service owns external LLM provider calls and uses `LLM_API_KEY`
+- Spring Boot does not call Claude/OpenAI directly in the MVP agent execution path
+- the frontend never receives `LLM_API_KEY` and never calls any LLM provider directly
 - Spring Boot sends agent configuration and attached tools to Python through `POST /internal/v1/agent/stream`
 - Python streams structured events back to Spring Boot
 - Spring Boot persists those events and relays frontend-safe events to the browser
@@ -778,11 +789,12 @@ End-to-end flow:
 7. Frontend opens execution through `POST /api/v1/agents/{agentId}/execute/stream`.
 8. Backend loads the agent, tools, guardrails, session, and previous messages.
 9. Backend calls Python `POST /internal/v1/agent/stream` with the full agent execution context.
-10. Python runs the LangGraph loop and executes tools through Sofia's tool execution layer.
-11. Python emits internal execution events to Spring Boot.
-12. Spring Boot persists execution, steps, and tool call history.
-13. Spring Boot streams frontend-safe SSE events to the browser.
-14. Frontend renders the final answer in chat and renders execution steps in Live Tracking.
+10. Python uses its configured LLM provider adapter to call Claude or another LLM.
+11. Python runs the LangGraph loop and executes tools through Sofia's tool execution layer.
+12. Python emits internal execution events to Spring Boot.
+13. Spring Boot persists execution, steps, and tool call history.
+14. Spring Boot streams frontend-safe SSE events to the browser.
+15. Frontend renders the final answer in chat and renders execution steps in Live Tracking.
 
 Frontend must treat tools as configuration, not as directly callable browser functions.
 
@@ -798,6 +810,8 @@ Frontend must not:
 
 - execute `web_search`, `http_request`, or `database_query` directly from the browser
 - send API keys or database credentials to the browser
+- send `LLM_API_KEY` or any LLM provider secret to the browser
+- call Claude, OpenAI, or another LLM provider directly
 - call `http://localhost:8001` or any Python agent-service route
 - invent tool results when streaming data is not available
 
@@ -925,8 +939,12 @@ Ownership:
 - Polina owns API client functions and SSE state handling
 - Stas API owns `/api/v1/tool-types`, agent tool attach routes, and SSE relay
 - Stas Data owns persisted `agent_tools`, executions, steps, and tool call history
+- Stas API owns `AGENT_SERVICE_URL` usage and the Spring Boot client that calls Python
+- Stas API must not require `LLM_API_KEY` for the normal MVP execution flow
 - Sofia owns Python tool schema validation and safe tool execution
 - Alina owns when the agent decides to use an attached tool
+- Alina owns Python LLM provider integration and model adapter behavior
+- Sofia coordinates with Alina so Python tool schemas are compatible with native LLM tool use
 
 Example create agent request:
 
@@ -1375,9 +1393,6 @@ SERVER_PORT=8080
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/agentic_studio
 SPRING_DATASOURCE_USERNAME=agentic
 SPRING_DATASOURCE_PASSWORD=agentic
-LLM_PROVIDER=anthropic
-LLM_MODEL_NAME=claude-3-5-haiku-latest
-LLM_API_KEY=
 AGENT_SERVICE_URL=http://localhost:8001
 FRONTEND_URL=http://localhost:3000
 APP_ENV=development
@@ -1393,6 +1408,13 @@ LLM_API_KEY=
 SPRING_BACKEND_URL=http://localhost:8080
 APP_ENV=development
 ```
+
+LLM environment ownership:
+
+- `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY` belong to `apps/agent-service`
+- Spring Boot uses `AGENT_SERVICE_URL` to call Python and does not need the LLM key in the MVP path
+- Next.js must never define `NEXT_PUBLIC_LLM_API_KEY` or any other public LLM secret
+- for local demos, use a low-cost model such as a Claude Haiku model and keep mock mode available when credits are unavailable
 
 Frontend `.env.local.example` target:
 
