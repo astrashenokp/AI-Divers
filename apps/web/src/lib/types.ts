@@ -112,7 +112,7 @@ export interface AgentExecution {
 export interface LiveTrackingEvent {
   id?: string;
   executionId?: string;
-  type: LiveTrackingEventName;
+  type: LiveTrackingEventName | string;
   stepNumber?: number;
   summary: string;
   toolName?: string;
