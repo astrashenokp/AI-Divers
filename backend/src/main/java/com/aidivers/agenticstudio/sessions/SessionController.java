@@ -21,7 +21,12 @@ public class SessionController {
     @ResponseStatus(HttpStatus.CREATED)
     public ChatSessionResponse createSession(@PathVariable UUID agentId,
                                              @Valid @RequestBody ChatSessionRequest request) {
-        ChatSession session = chatSessionService.create(agentId, request.getSource(), request.getTitle());
+        SessionSource source = request.getSource() == null ? SessionSource.STUDIO : request.getSource();
+        String title = request.getTitle() == null || request.getTitle().isBlank()
+                ? "Studio chat"
+                : request.getTitle();
+
+        ChatSession session = chatSessionService.create(agentId, source, title);
 
         return ChatSessionResponse.builder()
                 .id(session.getId())
