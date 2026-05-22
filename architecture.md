@@ -52,11 +52,11 @@ Each domain gets:
 - shared runtime rules
 LLM provider integration is owned by the AI runtime team:
 
-- the Python agent-service reads `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY`
-- the Python agent-service calls the external LLM provider such as Claude API
+- the Python agent-service reads `LLM_PROVIDER=groq`, `LLM_MODEL_NAME`, and `GROQ_API_KEY`
+- the Python agent-service calls the external LLM provider through Groq API
 - the Python agent-service owns prompt formatting, model adapter logic, native tool-use integration, and LLM response parsing
-- the Spring Boot backend must not call Claude/OpenAI directly for normal agent execution
-- the Next.js frontend must never receive or store `LLM_API_KEY`
+- the Spring Boot backend must not call Groq or any other external LLM provider directly for normal agent execution
+- the Next.js frontend must never receive or store `GROQ_API_KEY` or any other LLM secret
 
 Current agent runtime files:
 
@@ -396,9 +396,9 @@ Core rule:
 - the frontend calls only Spring Boot routes under `/api/v1`
 - Spring Boot owns persistence, validation, public API routes, and SSE relay
 - Python agent-service owns agent reasoning, tool execution, and internal event generation
-- Python agent-service owns external LLM provider calls and uses `LLM_API_KEY`
-- Spring Boot does not call Claude/OpenAI directly in the MVP agent execution path
-- the frontend never receives `LLM_API_KEY` and never calls any LLM provider directly
+- Python agent-service owns external LLM provider calls and uses `GROQ_API_KEY`
+- Spring Boot does not call Groq or any other external LLM provider directly in the MVP agent execution path
+- the frontend never receives `GROQ_API_KEY` or any other LLM secret and never calls any LLM provider directly
 - Spring Boot sends agent configuration and attached tools to Python through `POST /internal/v1/agent/stream`
 - Python streams structured events back to Spring Boot
 - Spring Boot persists those events and relays frontend-safe events to the browser
@@ -414,7 +414,7 @@ End-to-end flow:
 7. Frontend opens execution through `POST /api/v1/agents/{agentId}/execute/stream`.
 8. Backend loads the agent, tools, guardrails, session, and previous messages.
 9. Backend calls Python `POST /internal/v1/agent/stream` with the full agent execution context.
-10. Python uses its configured LLM provider adapter to call Claude or another LLM.
+10. Python uses its configured LLM provider adapter to call Groq.
 11. Python runs the LangGraph loop and executes tools through Sofia's tool execution layer.
 12. Python emits internal execution events to Spring Boot.
 13. Spring Boot persists execution, steps, and tool call history.
@@ -435,8 +435,8 @@ Frontend must not:
 
 - execute `search_web`, `http_request`, `save_note`, or any other tool directly from the browser
 - send API keys or database credentials to the browser
-- send `LLM_API_KEY` or any LLM provider secret to the browser
-- call Claude, OpenAI, or another LLM provider directly
+- send `GROQ_API_KEY` or any LLM provider secret to the browser
+- call Groq or another LLM provider directly
 - call `http://localhost:8001` or any Python agent-service route
 - invent tool results when streaming data is not available
 
@@ -609,8 +609,8 @@ Internal Spring Boot -> Python execution request:
     "id": "agent-123",
     "name": "General Assistant",
     "systemPrompt": "You help users clearly and safely.",
-    "modelProvider": "anthropic",
-    "modelName": "claude-3-5-haiku-latest"
+    "modelProvider": "groq",
+    "modelName": "llama-3.1-8b-instant"
   },
   "domain": "general",
   "guardrails": {
@@ -672,8 +672,7 @@ Backend must not define or require:
 
 ```text
 LLM_API_KEY
-ANTHROPIC_API_KEY
-OPENAI_API_KEY
+GROQ_API_KEY
 NEXT_PUBLIC_LLM_API_KEY
 ```
 
@@ -749,8 +748,8 @@ Internal request shape:
     "name": "General Assistant",
     "description": "Answers general user requests",
     "systemPrompt": "You help users clearly and safely.",
-    "modelProvider": "anthropic",
-    "modelName": "claude-3-5-haiku-latest"
+    "modelProvider": "groq",
+    "modelName": "llama-3.1-8b-instant"
   },
   "domain": "general",
   "tools": [
@@ -967,7 +966,7 @@ Backend is ready for Polina/frontend integration when:
 - `POST /api/v1/agents/{agentId}/execute/stream` accepts `{ "sessionId", "message", "metadata" }`
 - backend loads agent, tools, guardrails, session, and previous messages itself
 - backend calls Python only through `AGENT_SERVICE_URL`
-- backend does not require or expose `LLM_API_KEY`
+- backend does not require or expose `GROQ_API_KEY`
 - backend relays SSE events with the shared event names
 - backend persists execution, steps, tool calls, and final messages
 
@@ -1000,7 +999,7 @@ Ownership:
 - Stas API owns `/api/v1/tool-types`, agent tool attach routes, and SSE relay
 - Stas Data owns persisted `agent_tools`, executions, steps, and tool call history
 - Stas API owns `AGENT_SERVICE_URL` usage and the Spring Boot client that calls Python
-- Stas API must not require `LLM_API_KEY` for the normal MVP execution flow
+- Stas API must not require `GROQ_API_KEY` for the normal MVP execution flow
 - Sofia owns Python tool schema validation and safe tool execution
 - Alina owns when the agent decides to use an attached tool
 - Alina owns Python LLM provider integration and model adapter behavior
@@ -1410,10 +1409,10 @@ Current status:
 - builder UI is still frontend work
 LLM environment ownership:
 
-- `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY` belong to `apps/agent-service`
+- `LLM_PROVIDER=groq`, `LLM_MODEL_NAME`, and `GROQ_API_KEY` belong to `apps/agent-service`
 - Spring Boot uses `AGENT_SERVICE_URL` to call Python and does not need the LLM key in the MVP path
 - Next.js must never define `NEXT_PUBLIC_LLM_API_KEY` or any other public LLM secret
-- for local demos, use a low-cost model such as a Claude Haiku model and keep mock mode available when credits are unavailable
+- for local demos, use a low-cost Groq-hosted model such as `llama-3.1-8b-instant` and keep mock mode available when credits or rate limits are unavailable
 
 Frontend `.env.local.example` target:
 
