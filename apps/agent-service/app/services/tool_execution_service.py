@@ -1,41 +1,183 @@
 import logging
+from datetime import datetime, timezone
+from typing import Literal
+
 from pydantic import ValidationError
 
 from tools.tool_registry import get_tool_registry
+from tools.http_request_tool import ToolGuardrailError
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Runtime contract
+# ---------------------------------------------------------------------------
 
-async def execute_tool_call(tool_name: str, args: dict) -> str:
+ToolStatus = Literal["success", "error", "blocked", "requires_confirmation"]
+
+ERROR_TYPE_UNKNOWN_TOOL = "unknown_tool"
+ERROR_TYPE_VALIDATION   = "validation_error"
+ERROR_TYPE_BLOCKED      = "blocked"
+ERROR_TYPE_RUNTIME      = "runtime_error"
+
+
+def _now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+def _duration_ms(started_at: str, completed_at: str) -> int:
+    try:
+        start = datetime.fromisoformat(started_at)
+        end   = datetime.fromisoformat(completed_at)
+        return max(0, int((end - start).total_seconds() * 1000))
+    except Exception:
+        return 0
+
+
+def _make_result(
+    *,
+    tool_name: str,
+    status: ToolStatus,
+    result: str,
+    started_at: str,
+    completed_at: str,
+    execution_id: str | None,
+    error_type: str | None = None,
+) -> dict:
+    """
+    Unified ToolResult dict.
+
+    {
+        "tool_name":    str,
+        "status":       "success" | "error" | "blocked" | "requires_confirmation",
+        "result":       str,          # human-readable output or error message
+        "started_at":   str,          # ISO 8601 UTC
+        "completed_at": str,          # ISO 8601 UTC
+        "duration_ms":  int,
+        "execution_id": str | None,
+        "error_type":   str | None,   # None when status == "success"
+    }
+    """
+    return {
+        "tool_name":    tool_name,
+        "status":       status,
+        "result":       result,
+        "started_at":   started_at,
+        "completed_at": completed_at,
+        "duration_ms":  _duration_ms(started_at, completed_at),
+        "execution_id": execution_id,
+        "error_type":   error_type,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+async def execute_tool_call(
+    tool_name: str,
+    args: dict,
+    execution_id: str | None = None,
+) -> dict:
     """
     Central entry point for tool execution.
-    Called by Alina's agent after it decides to use a tool.
 
-    Args:
-        tool_name: name of the tool to call (must exist in TOOL_REGISTRY)
-        args: raw dict of arguments from the LLM
+    Called by Alina's agent after the LLM decides to use a tool.
+    Relayed as SSE events by Stas API (tool_call_started / tool_call_finished).
 
     Returns:
-        String result of the tool, or a safe error message string.
-        Never raises — all errors are caught and returned as strings.
+        ToolResult dict — always, never raises.
     """
+    started_at = _now_iso()
     registry = get_tool_registry()
 
+    # ── 1. Unknown tool ────────────────────────────────────────────────────
     if tool_name not in registry:
-        logger.warning(f"Unknown tool requested: {tool_name}")
-        return f"Error: tool '{tool_name}' is not available. Available tools: {list(registry.keys())}"
+        completed_at = _now_iso()
+        logger.warning(
+            "Unknown tool | tool=%s | execution_id=%s",
+            tool_name, execution_id,
+        )
+        return _make_result(
+            tool_name=tool_name,
+            status="error",
+            result=(
+                f"Tool '{tool_name}' is not available. "
+                f"Available tools: {list(registry.keys())}"
+            ),
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_id=execution_id,
+            error_type=ERROR_TYPE_UNKNOWN_TOOL,
+        )
 
     tool_fn = registry[tool_name]
 
     try:
-        result = await tool_fn(args)
-        logger.info(f"Tool '{tool_name}' executed successfully")
-        return str(result)
+        output = await tool_fn(args)
+        completed_at = _now_iso()
+        logger.info(
+            "Tool success | tool=%s | execution_id=%s",
+            tool_name, execution_id,
+        )
+        return _make_result(
+            tool_name=tool_name,
+            status="success",
+            result=str(output),
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_id=execution_id,
+        )
 
-    except ValidationError as e:
-        logger.warning(f"Tool '{tool_name}' received invalid args: {e}")
-        return f"Error: invalid arguments for tool '{tool_name}'. Details: {e.errors()}"
+    # ── 2. Guardrail block ─────────────────────────────────────────────────
+    except ToolGuardrailError as exc:
+        completed_at = _now_iso()
+        logger.warning(
+            "Guardrail blocked | tool=%s | execution_id=%s | reason=%s",
+            tool_name, execution_id, exc,
+        )
+        return _make_result(
+            tool_name=tool_name,
+            status="error",
+            result=str(exc),
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_id=execution_id,
+            error_type=ERROR_TYPE_BLOCKED,
+        )
 
-    except Exception as e:
-        logger.error(f"Tool '{tool_name}' raised an unexpected error: {e}", exc_info=True)
-        return f"Error: tool '{tool_name}' failed with: {str(e)}"
+    # ── 3. Validation error ────────────────────────────────────────────────
+    except ValidationError as exc:
+        completed_at = _now_iso()
+        logger.warning(
+            "Validation error | tool=%s | execution_id=%s",
+            tool_name, execution_id,
+        )
+        return _make_result(
+            tool_name=tool_name,
+            status="error",
+            result=f"Invalid arguments for '{tool_name}': {exc.errors()}",
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_id=execution_id,
+            error_type=ERROR_TYPE_VALIDATION,
+        )
+
+    # ── 4. Runtime error ───────────────────────────────────────────────────
+    except Exception as exc:
+        completed_at = _now_iso()
+        logger.error(
+            "Runtime error | tool=%s | execution_id=%s | error=%s",
+            tool_name, execution_id, type(exc).__name__,
+            exc_info=True,
+        )
+        return _make_result(
+            tool_name=tool_name,
+            status="error",
+            result=f"Tool '{tool_name}' failed: {str(exc)}",
+            started_at=started_at,
+            completed_at=completed_at,
+            execution_id=execution_id,
+            error_type=ERROR_TYPE_RUNTIME,
+        )

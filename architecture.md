@@ -617,6 +617,15 @@ Target product tool types:
 - `http_request`
 - `database_query`
 
+Frontend tool categories for the `/tools` page:
+
+- `education` - UI label: `Освіта`
+- `stores` - UI label: `Магазини`
+- `tourism` - UI label: `Туризм`
+- `finance` - UI label: `Фінанси`
+
+These categories are frontend-facing product groupings. They do not replace the execution tool types above. A category contains one or more tool templates. For example, `finance` may contain an `http_request` tool template for market data, while `tourism` may contain a `web_search` or `http_request` template for travel information.
+
 Python tool executor pattern:
 
 ```python
@@ -742,6 +751,183 @@ POST /internal/v1/agent/stream
 
 This internal endpoint is implemented by `apps/agent-service` and streams structured agent events back to Spring Boot. The browser never calls the Python service directly.
 
+---
+
+## Frontend, Backend, and AI Runtime Connection Contract
+
+This section defines how Rinata/Polina frontend work connects to Stas API/Stas Data backend work and Alina/Sofia AI runtime work.
+
+Core rule:
+
+- the frontend never calls `apps/agent-service` directly
+- the frontend calls only Spring Boot routes under `/api/v1`
+- Spring Boot owns persistence, validation, public API routes, and SSE relay
+- Python agent-service owns agent reasoning, tool execution, and internal event generation
+- Spring Boot sends agent configuration and attached tools to Python through `POST /internal/v1/agent/stream`
+- Python streams structured events back to Spring Boot
+- Spring Boot persists those events and relays frontend-safe events to the browser
+
+End-to-end flow:
+
+1. Frontend loads available tool categories and templates from `GET /api/v1/tool-types`.
+2. User selects tools on the frontend and configures an agent.
+3. Frontend saves the agent through `POST /api/v1/agents` or `PUT /api/v1/agents/{agentId}`.
+4. Frontend attaches selected tools through `POST /api/v1/agents/{agentId}/tools`.
+5. Backend validates and persists the selected tools in `agent_tools`.
+6. User sends a test message in the chat.
+7. Frontend opens execution through `POST /api/v1/agents/{agentId}/execute/stream`.
+8. Backend loads the agent, tools, guardrails, session, and previous messages.
+9. Backend calls Python `POST /internal/v1/agent/stream` with the full agent execution context.
+10. Python runs the LangGraph loop and executes tools through Sofia's tool execution layer.
+11. Python emits internal execution events to Spring Boot.
+12. Spring Boot persists execution, steps, and tool call history.
+13. Spring Boot streams frontend-safe SSE events to the browser.
+14. Frontend renders the final answer in chat and renders execution steps in Live Tracking.
+
+Frontend must treat tools as configuration, not as directly callable browser functions.
+
+Frontend may show:
+
+- tool category cards
+- tool template cards
+- enabled/disabled state
+- simple public config fields
+- Live Tracking tool call status
+
+Frontend must not:
+
+- execute `web_search`, `http_request`, or `database_query` directly from the browser
+- send API keys or database credentials to the browser
+- call `http://localhost:8001` or any Python agent-service route
+- invent tool results when streaming data is not available
+
+Backend must expose tool templates in a frontend-friendly shape:
+
+```json
+{
+  "categories": [
+    {
+      "id": "education",
+      "label": "Освіта",
+      "description": "Tools for learning assistants, course search, tutoring, and knowledge lookup",
+      "tools": [
+        {
+          "type": "web_search",
+          "name": "Education Web Search",
+          "description": "Searches public learning resources",
+          "requiresHumanConfirmation": false,
+          "configSchema": {
+            "allowedDomains": "string[]"
+          }
+        }
+      ]
+    },
+    {
+      "id": "stores",
+      "label": "Магазини",
+      "description": "Tools for product lookup, order status, and store integrations",
+      "tools": []
+    },
+    {
+      "id": "tourism",
+      "label": "Туризм",
+      "description": "Tools for travel research, destinations, routes, and booking integrations",
+      "tools": []
+    },
+    {
+      "id": "finance",
+      "label": "Фінанси",
+      "description": "Tools for financial data, reports, and account-safe integrations",
+      "tools": []
+    }
+  ]
+}
+```
+
+Frontend attaches a tool to an agent through Spring Boot:
+
+```json
+{
+  "type": "web_search",
+  "name": "Education Web Search",
+  "category": "education",
+  "enabled": true,
+  "config": {
+    "allowedDomains": ["wikipedia.org", "coursera.org"]
+  }
+}
+```
+
+Backend stores this in `agent_tools` and sends only validated, redacted config to Python.
+
+Internal Spring Boot -> Python execution request:
+
+```json
+{
+  "agent": {
+    "id": "agent-123",
+    "name": "Education Assistant",
+    "systemPrompt": "You help students understand topics clearly.",
+    "modelProvider": "anthropic",
+    "modelName": "claude-3-5-haiku-latest"
+  },
+  "guardrails": {
+    "maxSteps": 6,
+    "forbiddenTopics": [],
+    "requireHumanConfirmationForTools": ["database_query"]
+  },
+  "tools": [
+    {
+      "id": "agent-tool-1",
+      "type": "web_search",
+      "name": "Education Web Search",
+      "config": {
+        "allowedDomains": ["wikipedia.org", "coursera.org"]
+      }
+    }
+  ],
+  "session": {
+    "id": "session-123",
+    "source": "STUDIO"
+  },
+  "message": {
+    "role": "user",
+    "content": "Поясни, що таке LangGraph"
+  }
+}
+```
+
+Python agent-service must emit events using the shared SSE event names. Event payloads must be structured and frontend-safe:
+
+```json
+{
+  "event": "tool_call_started",
+  "executionId": "execution-123",
+  "stepIndex": 2,
+  "toolName": "web_search",
+  "summary": "Searching public learning resources",
+  "status": "RUNNING",
+  "timestamp": "2026-05-22T12:00:00Z"
+}
+```
+
+Frontend rendering contract:
+
+- `message_delta` updates the assistant message in chat
+- `execution_completed` finalizes the assistant message
+- `reasoning_step`, `tool_call_started`, `tool_call_finished`, `guardrail_blocked`, `human_confirmation_required`, and `execution_failed` update Live Tracking
+- frontend displays `summary`, `stepIndex`, `toolName`, `status`, and `timestamp`
+- frontend may show expandable JSON only when backend marks it frontend-safe
+
+Ownership:
+
+- Rinata owns how categories, tool cards, chat, and Live Tracking look
+- Polina owns API client functions and SSE state handling
+- Stas API owns `/api/v1/tool-types`, agent tool attach routes, and SSE relay
+- Stas Data owns persisted `agent_tools`, executions, steps, and tool call history
+- Sofia owns Python tool schema validation and safe tool execution
+- Alina owns when the agent decides to use an attached tool
+
 Example create agent request:
 
 ```json
@@ -831,8 +1017,9 @@ Accepted execution statuses:
 
 Current frontend:
 
-- `/` is a polished landing/template page.
-- `/chat` is a mock chat with visible tool activity.
+- `/` explains what Agentic Studio is and links to the main product areas.
+- `/tools` shows the basic frontend tool categories: `Освіта`, `Магазини`, `Туризм`, `Фінанси`.
+- `/chat` is a test chat with visible tool activity.
 - chat components already exist and should be reused.
 
 Target frontend screens:
@@ -1024,4 +1211,3 @@ The final architecture is:
 - autonomous execution loop
 - configurable tools and guardrails
 - deployable agents through REST API, webhook, or widget
-
