@@ -1047,6 +1047,291 @@ Polina should connect the existing mock `AgentThinkingPanel` concept to real SSE
 
 ---
 
+## AI Diver Guide
+
+### Purpose
+
+Agentic Studio includes an interactive in-product helper called **AI Diver Guide**.
+
+The guide is represented by a small robot diver mascot wearing a swimming mask and snorkel. The mascot supports the product metaphor: users are "diving" into agent creation, tool configuration, Live Tracking, and deployment.
+
+The goal of AI Diver Guide is to make the product easier for first-time users and safer during presentations. Agentic Studio has several advanced concepts such as prompts, tools, guardrails, Live Tracking, sessions, and deployments. The guide helps users understand what to do next and recover when something goes wrong.
+
+AI Diver Guide is not part of the core agent execution engine. It is a frontend product assistant and onboarding layer.
+
+### User Experience
+
+On the user's first visit, AI Diver Guide appears near the main input, composer, or primary action area and asks:
+
+```text
+First dive? I can help you create your first agent or fix a problem.
+```
+
+The guide should provide action buttons such as:
+
+- `Create first agent`
+- `Explain this screen`
+- `I have a problem`
+- `Hide`
+
+The guide must be dismissible. After dismissal, it should collapse into a small helper icon and should not block the main workflow.
+
+The guide may reappear automatically only for important events such as backend connection failure, stream failure, guardrail blocking, or deployment configuration problems.
+
+### Interaction Modes
+
+AI Diver Guide supports four interaction modes.
+
+#### 1. First-Time Onboarding
+
+The guide helps a new user complete the first successful agent setup:
+
+1. choose an agent template
+2. edit the system prompt
+3. enable at least one tool
+4. configure a simple guardrail such as `maxSteps`
+5. run a test message
+6. view Live Tracking events
+7. copy or preview a deployment option
+
+This mode supports the product requirement that a user should be able to create and test an agent quickly.
+
+#### 2. Contextual Help
+
+The guide shows screen-specific help based on the current product area:
+
+- Agent Builder: explains agent name, description, and system prompt
+- Tool Configuration: explains what tools allow the agent to do
+- Guardrails: explains max steps, forbidden topics, and human confirmation
+- Test Chat: explains how to run an agent task
+- Live Tracking: explains reasoning steps, tool calls, observations, and final answer events
+- Deployments: explains REST API, webhook, and widget options
+
+#### 3. Troubleshooting
+
+The guide can react to frontend-visible problems:
+
+- backend is unreachable
+- healthcheck fails
+- SSE stream fails
+- malformed stream event is received
+- no agent is selected
+- agent prompt is empty
+- no tools are enabled
+- guardrail blocks execution
+- human confirmation is required
+- deployment slug or widget configuration is missing
+
+For example, when the backend is unreachable, the guide may show:
+
+```text
+I cannot reach the backend. You can check the health endpoint or continue in mock mode.
+```
+
+Possible actions:
+
+- `Check backend health`
+- `Retry`
+- `Run mock mode`
+- `Show debug info`
+
+#### 4. Demo Mode
+
+The guide may include a demo-safe path that helps the team show the product in a predictable order:
+
+1. create a starter agent
+2. enable one tool
+3. set `maxSteps`
+4. run a test task
+5. show Live Tracking
+6. copy widget code
+7. open the external widget preview
+
+This mode is optional but useful for presenting the product reliably.
+
+### MVP Implementation Strategy
+
+For the MVP, AI Diver Guide should be implemented as a frontend rule-based assistant.
+
+It should not require an LLM or backend endpoint in the first version. This keeps the feature reliable and prevents it from blocking the core agent execution work.
+
+The guide can decide what to show based on:
+
+- current route
+- whether this is the user's first visit
+- selected agent state
+- builder completion state
+- API health state
+- stream state
+- latest execution error
+- latest Live Tracking event
+- deployment configuration state
+
+A future version may connect AI Diver Guide to a backend help endpoint, but this is not required for the first version.
+
+### Frontend Ownership
+
+Rinata owns the visual presentation of the guide:
+
+- mascot design
+- popover/bubble UI
+- animations
+- positioning near the composer or primary action area
+- responsive behavior
+- Sass styling
+
+Suggested UI files:
+
+```text
+apps/web/src/components/help/AiDiverGuide.tsx
+apps/web/src/components/help/AiDiverMascot.tsx
+apps/web/src/components/help/AiDiverBubble.tsx
+apps/web/src/components/help/AiDiverActionChips.tsx
+apps/web/src/components/help/AiDiverGuide.module.scss
+```
+
+Polina owns the guide's client-side logic and integration state:
+
+- guide triggers
+- guide rules
+- localStorage persistence
+- API health integration
+- stream error integration
+- action callbacks for mock mode, retry, and guided setup
+
+Suggested integration files:
+
+```text
+apps/web/src/lib/guideTypes.ts
+apps/web/src/lib/guideRules.ts
+apps/web/src/hooks/useAiDiverGuide.ts
+apps/web/src/store/guideStore.ts
+```
+
+### Suggested TypeScript Model
+
+```ts
+export type GuideTrigger =
+  | "first_visit"
+  | "builder_empty"
+  | "agent_missing_prompt"
+  | "no_tools_selected"
+  | "backend_unreachable"
+  | "stream_failed"
+  | "guardrail_blocked"
+  | "human_confirmation_required"
+  | "deployment_not_configured"
+  | "demo_mode";
+
+export type GuideActionType =
+  | "start_guided_setup"
+  | "explain_screen"
+  | "insert_template"
+  | "add_default_tool"
+  | "set_safe_guardrails"
+  | "check_backend_health"
+  | "retry_stream"
+  | "run_mock_mode"
+  | "open_widget_preview"
+  | "dismiss";
+
+export type GuideAction = {
+  id: string;
+  label: string;
+  type: GuideActionType;
+};
+
+export type GuideMessage = {
+  id: string;
+  trigger: GuideTrigger;
+  title: string;
+  body: string;
+  actions: GuideAction[];
+};
+
+export type GuideContext = {
+  route: string;
+  isFirstVisit: boolean;
+  hasSelectedAgent: boolean;
+  hasSystemPrompt: boolean;
+  enabledToolCount: number;
+  backendReachable: boolean | null;
+  isStreaming: boolean;
+  latestExecutionStatus?:
+    | "RUNNING"
+    | "COMPLETED"
+    | "FAILED"
+    | "BLOCKED"
+    | "WAITING_FOR_HUMAN";
+  deploymentConfigured: boolean;
+};
+```
+
+### Behavior Rules
+
+Minimum guide behavior:
+
+- show first-visit onboarding once
+- store dismissal state in `localStorage`
+- collapse into a small icon after dismissal
+- reappear for critical errors
+- never block the main workflow
+- never display secrets, API keys, database credentials, or private tool configs
+- provide short, actionable messages
+- keep advanced explanations behind action buttons
+
+### Example Messages
+
+First visit:
+
+```text
+First dive? I can help you create your first agent or fix a problem.
+```
+
+Agent builder empty:
+
+```text
+Start by choosing a template or writing a clear role for your agent.
+```
+
+No tools enabled:
+
+```text
+Your agent can answer, but it cannot act yet. Add a tool to show real agent behavior.
+```
+
+Stream failure:
+
+```text
+The live stream stopped unexpectedly. You can retry or switch to mock mode.
+```
+
+Guardrail blocked:
+
+```text
+A guardrail stopped this execution. Check the blocked topic or reduce the request risk.
+```
+
+Deployment not configured:
+
+```text
+Your agent works in the studio. Enable a widget or API deployment to use it outside.
+```
+
+### Future Extension
+
+In a future version, AI Diver Guide may become an AI-powered assistant that uses the current product context to generate personalized help.
+
+Possible backend route:
+
+```text
+POST /api/v1/help/guide
+```
+
+However, this route is not required for the MVP. The first version should stay frontend-only and rule-based for reliability.
+
+---
+
 ## Docker and Local Development
 
 Docker is used to make local development predictable for all team members.
