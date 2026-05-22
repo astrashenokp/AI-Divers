@@ -10,11 +10,15 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatLayout } from "@/components/chat/ChatLayout";
 import type { ChatMessageViewModel } from "@/components/chat/ChatMessageBubble";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import type { AiDiverAction } from "@/components/help/AiDiverActionChips";
 import { AiDiverGuide } from "@/components/help/AiDiverGuide";
+import { useAiDiverGuide } from "@/hooks/useAiDiverGuide";
 import { useAgents } from "@/hooks/useAgents";
 import { useAgentExecutionStream } from "@/hooks/useAgentExecutionStream";
 import { useAgentSession } from "@/hooks/useAgentSession";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { LIVE_TRACKING_EVENTS } from "@/lib/constants";
+import type { GuideAction } from "@/lib/guideTypes";
 import type { ChatMessage, LiveTrackingEvent } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
@@ -32,15 +36,21 @@ const toolInstructions: Record<string, string> = {
   hotel_search: "Напишіть місто, дати заїзду й виїзду та кількість гостей.",
   get_weather: "Напишіть місто і період, для якого потрібен прогноз погоди.",
   course_search: "Опишіть тему, навичку або рівень складності курсу.",
-  course_info: "Напишіть назву або ідентифікатор курсу, про який потрібні деталі.",
+  course_info:
+    "Напишіть назву або ідентифікатор курсу, про який потрібні деталі.",
   save_progress: "Опишіть, який навчальний прогрес потрібно зберегти.",
-  product_search: "Напишіть назву товару, категорію або ключові слова для пошуку.",
-  order_status: "Напишіть номер замовлення або деталі, за якими його можна знайти.",
-  check_price: "Напишіть назву або ідентифікатор товару, ціну якого потрібно перевірити.",
+  product_search:
+    "Напишіть назву товару, категорію або ключові слова для пошуку.",
+  order_status:
+    "Напишіть номер замовлення або деталі, за якими його можна знайти.",
+  check_price:
+    "Напишіть назву або ідентифікатор товару, ціну якого потрібно перевірити.",
   get_current_time:
     "Напишіть часовий пояс або місто, для якого потрібно отримати поточний час.",
-  search_web: "Опишіть, яку актуальну інформацію потрібно знайти в інтернеті.",
-  save_note: "Напишіть нотатку або факт, який потрібно зберегти для поточної сесії.",
+  search_web:
+    "Опишіть, яку актуальну інформацію потрібно знайти в інтернеті.",
+  save_note:
+    "Напишіть нотатку або факт, який потрібно зберегти для поточної сесії.",
   http_request:
     "Опишіть публічний API, метод і дані запиту. Агент попросить підтвердження, якщо це потрібно.",
 };
@@ -203,16 +213,26 @@ function ToolContextBanner({ context }: { context?: ToolContext }) {
 
 function ChatComposerArea({
   draftMessage,
+  guideActions,
+  guideBody,
+  guideCollapsed,
+  guideTitle,
   isSending,
   isDisabled,
   toolContext,
+  onGuideCollapsedChange,
   onDraftChange,
   onSubmit,
 }: {
   draftMessage: string;
+  guideActions?: AiDiverAction[];
+  guideBody: string;
+  guideCollapsed: boolean;
+  guideTitle: string;
   isSending: boolean;
   isDisabled: boolean;
   toolContext?: ToolContext;
+  onGuideCollapsedChange: (collapsed: boolean) => void;
   onDraftChange: (value: string) => void;
   onSubmit: (value: string) => void;
 }) {
@@ -220,8 +240,11 @@ function ChatComposerArea({
     <>
       <ToolContextBanner context={toolContext} />
       <AiDiverGuide
-        title="Перше занурення у Agentic Studio?"
-        body="Я допоможу розібратися з чатом агента."
+        title={guideTitle}
+        body={guideBody}
+        actions={guideActions}
+        isCollapsed={guideCollapsed}
+        onCollapsedChange={onGuideCollapsedChange}
       />
       <ChatComposer
         value={draftMessage}
@@ -254,11 +277,40 @@ function ChatPageContent() {
     error: executionError,
     startExecution,
   } = useAgentExecutionStream(selectedAgent?.id, session?.id);
+  const {
+    isBackendReachable,
+    error: healthError,
+    refreshHealth,
+  } = useBackendHealth();
 
   const toolContext = useMemo(
     () => getToolContext(searchParams.get("domain"), searchParams.get("tool")),
     [searchParams],
   );
+  const latestExecutionEvent = executionEvents.at(-1);
+  const guide = useAiDiverGuide({
+    hasSelectedAgent: Boolean(selectedAgent),
+    hasSystemPrompt: Boolean(selectedAgent?.systemPrompt.trim()),
+    enabledToolCount:
+      selectedAgent?.tools.filter((tool) => tool.enabled).length ?? 0,
+    backendReachable: healthError ? false : isBackendReachable ? true : null,
+    isStreaming,
+    latestExecutionStatus:
+      latestExecutionEvent?.status === "idle"
+        ? undefined
+        : latestExecutionEvent?.status,
+    latestErrorMessage:
+      executionError?.message ??
+      sessionError?.message ??
+      agentsError?.message ??
+      healthError?.message,
+    deploymentConfigured: Boolean(
+      selectedAgent?.deployment.publicAccessEnabled ||
+        selectedAgent?.deployment.restEnabled ||
+        selectedAgent?.deployment.webhookEnabled ||
+        selectedAgent?.deployment.widgetEnabled,
+    ),
+  });
 
   const messagesViewModel = useMemo<ChatMessageViewModel[]>(() => {
     const baseMessages =
@@ -308,6 +360,65 @@ function ChatPageContent() {
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
   const isComposerDisabled = isBusy || !selectedAgent;
 
+  const handleGuideAction = (action: GuideAction) => {
+    if (action.type === "dismiss") {
+      guide.dismiss();
+      return;
+    }
+
+    if (action.type === "check_backend_health") {
+      void refreshHealth();
+      return;
+    }
+
+    if (action.type === "retry_stream") {
+      setDraftMessage("Повтори останній тест агента.");
+      guide.collapse();
+      return;
+    }
+
+    if (action.type === "run_mock_mode") {
+      setDraftMessage("Запусти демо-приклад у mock режимі.");
+      guide.collapse();
+      return;
+    }
+
+    if (action.type === "insert_template") {
+      setDraftMessage(
+        "Допоможи налаштувати агента з чіткою роллю, одним tool і безпечними guardrails.",
+      );
+      guide.collapse();
+      return;
+    }
+
+    if (action.type === "add_default_tool") {
+      setDraftMessage("Покажи, який базовий tool варто додати цьому агенту.");
+      guide.collapse();
+      return;
+    }
+
+    if (action.type === "set_safe_guardrails") {
+      setDraftMessage("Поясни безпечні guardrails для цього агента.");
+      guide.collapse();
+      return;
+    }
+
+    if (action.type === "open_widget_preview") {
+      setDraftMessage("Поясни, як підготувати widget deployment для цього агента.");
+      guide.collapse();
+      return;
+    }
+
+    setDraftMessage("Поясни, що робити на цьому екрані Agentic Studio.");
+    guide.collapse();
+  };
+
+  const guideActions = guide.message?.actions.map((action) => ({
+    id: action.id,
+    label: action.label,
+    onClick: () => handleGuideAction(action),
+  }));
+
   const handleSubmit = async (message: string) => {
     if (!selectedAgent) {
       return;
@@ -352,9 +463,27 @@ function ChatPageContent() {
       composer={
         <ChatComposerArea
           draftMessage={draftMessage}
+          guideActions={guideActions}
+          guideBody={
+            guide.message?.body ??
+            "Я допоможу розібратися з чатом агента."
+          }
+          guideCollapsed={guide.isCollapsed}
+          guideTitle={
+            guide.message?.title ??
+            "Перше занурення у Agentic Studio?"
+          }
           isSending={isBusy}
           isDisabled={isComposerDisabled}
           toolContext={toolContext}
+          onGuideCollapsedChange={(collapsed) => {
+            if (collapsed) {
+              guide.collapse();
+              return;
+            }
+
+            guide.expand();
+          }}
           onDraftChange={setDraftMessage}
           onSubmit={handleSubmit}
         />
