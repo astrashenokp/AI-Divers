@@ -183,7 +183,7 @@ class AgentStreamRequest(BaseModel):
     sessionId: str | None = None
     domain: str | None = None
     use_case: str | None = None
-    max_steps: int = 10
+    max_steps: int = 15
     metadata: dict[str, Any] = {}
 
 
