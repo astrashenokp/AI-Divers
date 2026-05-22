@@ -65,15 +65,24 @@ DOMAIN_CONFIG = {
 }
 
 
-def _get_openai_client():
-    from openai import OpenAI
-    return OpenAI(
+def _get_openai_client(provider: str | None = None):
+    from openai import AsyncOpenAI
+    import os
+    if provider == "gemini" or os.getenv("GEMINI_API_KEY"):
+        return AsyncOpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
+    return AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY,
     )
 
 
-def _get_system_prompt(domain: str, use_case: str | None = None) -> str:
+def _get_system_prompt(state: AgentState, domain: str, use_case: str | None = None) -> str:
+    if state.get("system_prompt"):
+        return state["system_prompt"]
+
     config = DOMAIN_CONFIG.get(domain)
     if not config:
         return "Ти — корисний AI-асистент. Відповідай українською."
@@ -84,8 +93,15 @@ def _get_system_prompt(domain: str, use_case: str | None = None) -> str:
     return prompt
 
 
-def _get_tools_for_domain(domain: str, use_case: str | None = None) -> list[dict]:
+def _get_tools_for_domain(state: AgentState, domain: str, use_case: str | None = None) -> list[dict]:
     """Returns tool metadata for the LLM, filtered by domain and use case."""
+    
+    if state.get("tools") is not None:
+        custom_tool_names = state["tools"]
+        all_tools = get_available_tools()
+        filtered_tools = [t for t in all_tools if t.__name__ in custom_tool_names]
+        return _to_openai_tools(filtered_tools)
+        
     all_tools = get_available_tools(domain)
 
     if not use_case:
@@ -251,8 +267,8 @@ async def reason_node(state: AgentState) -> dict:
 
     domain = state.get("domain", "education")
     use_case = state.get("use_case")
-    system_prompt = _get_system_prompt(domain, use_case)
-    tools = _get_tools_for_domain(domain, use_case)
+    system_prompt = _get_system_prompt(state, domain, use_case)
+    tools = _get_tools_for_domain(state, domain, use_case)
 
     if not GROQ_API_KEY:
         logger.warning("GROQ_API_KEY not set — using fallback response")
@@ -269,35 +285,69 @@ async def reason_node(state: AgentState) -> dict:
             "step_count": state.get("step_count", 0) + 1,
         }
 
-    client = _get_openai_client()
+    provider = state.get("model_provider")
+    client = _get_openai_client(provider)
     api_messages = _build_openai_messages(state["messages"], system_prompt)
 
+    model = state.get("model_name") or (
+        "gemini-2.5-flash" if provider == "gemini" else GROQ_MODEL
+    )
+
     kwargs = {
-        "model": GROQ_MODEL,
+        "model": model,
         "messages": api_messages,
         "max_tokens": 4096,
+        "stream": True,
     }
     if tools:
         kwargs["tools"] = tools
 
-    response = client.chat.completions.create(**kwargs)
-    msg = response.choices[0].message
-
+    response = await client.chat.completions.create(**kwargs)
+    
     assistant_msg: dict = {"role": "assistant"}
-    assistant_msg["content"] = msg.content or ""
+    content_buffer = ""
+    tool_calls_dict = {}
+
+    async for chunk in response:
+        delta = chunk.choices[0].delta
+        if delta.content:
+            content_buffer += delta.content
+            _emit_sse("message_delta", {
+                "execution_id": state["execution_id"],
+                "delta": delta.content
+            })
+            
+        if delta.tool_calls:
+            for tc in delta.tool_calls:
+                idx = tc.index
+                if idx not in tool_calls_dict:
+                    tool_calls_dict[idx] = {
+                        "id": tc.id or "",
+                        "type": "function",
+                        "function": {"name": "", "arguments": ""}
+                    }
+                if tc.id:
+                    tool_calls_dict[idx]["id"] = tc.id
+                if tc.function:
+                    if tc.function.name:
+                        tool_calls_dict[idx]["function"]["name"] += tc.function.name
+                    if tc.function.arguments:
+                        tool_calls_dict[idx]["function"]["arguments"] += tc.function.arguments
+
+    assistant_msg["content"] = content_buffer
 
     has_tool_use = False
-    if msg.tool_calls:
+    if tool_calls_dict:
         has_tool_use = True
         assistant_msg["tool_calls"] = [
             {
-                "id": tc.id,
+                "id": tc["id"],
                 "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
+                    "name": tc["function"]["name"],
+                    "arguments": tc["function"]["arguments"],
                 },
             }
-            for tc in msg.tool_calls
+            for idx, tc in sorted(tool_calls_dict.items())
         ]
 
     _emit_sse("reasoning_step", {

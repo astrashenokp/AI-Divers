@@ -179,6 +179,11 @@ class AgentStreamRequest(BaseModel):
     domain: str | None = None
     use_case: str | None = None
     max_steps: int = 10
+    system_prompt: str | None = None
+    tools: list[str] | None = None
+    guardrails: dict | None = None
+    model_provider: str | None = None
+    model_name: str | None = None
     metadata: dict[str, Any] = {}
 
 def _sse_event(event: str, data: dict) -> str:
@@ -218,6 +223,12 @@ async def _stream_agent(
             "execution_id": execution_id,
             "step_count": 0,
             "max_steps":  request.max_steps,
+            "system_prompt": request.system_prompt,
+            "tools": request.tools,
+            "guardrails": request.guardrails,
+            "session_id": request.sessionId,
+            "model_provider": request.model_provider,
+            "model_name": request.model_name,
         }
 
         agent_task = asyncio.create_task(agent_graph.ainvoke(initial_state))
@@ -238,18 +249,13 @@ async def _stream_agent(
         for msg in reversed(result_state.get("messages", [])):
             if not isinstance(msg, dict) or msg.get("role") != "assistant":
                 continue
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
-                content = " ".join(parts)
-            if content:
-                final_text = content
+            content_msg = msg.get("content", "")
+            if isinstance(content_msg, list):
+                parts = [b.get("text", "") for b in content_msg if isinstance(b, dict) and b.get("type") == "text"]
+                content_msg = " ".join(parts)
+            if content_msg:
+                final_text = content_msg
                 break
-
-        yield _sse_event("message_delta", {
-            "executionId": execution_id,
-            "delta": final_text,
-        })
 
         yield _sse_event("execution_completed", {
             "executionId": execution_id,
