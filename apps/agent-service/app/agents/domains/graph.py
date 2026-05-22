@@ -238,7 +238,12 @@ def _build_openai_messages(
 
             tool_calls = msg.get("tool_calls")
             if tool_calls:
-                entry["tool_calls"] = tool_calls
+                entry["tool_calls"] = [
+                    {"type": "function", **tc}
+                    if "type" not in tc
+                    else tc
+                    for tc in tool_calls
+                ]
 
             messages.append(entry)
         else:
@@ -354,6 +359,7 @@ async def reason_node(state: AgentState) -> dict:
         assistant_msg["tool_calls"] = [
             {
                 "id": tc["id"],
+                "type": "function",
                 "function": {
                     "name": tc["function"]["name"],
                     "arguments": tc["function"]["arguments"],
