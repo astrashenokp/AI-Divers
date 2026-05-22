@@ -177,6 +177,13 @@ export interface ApiErrorShape {
   timestamp?: string;
 }
 
+export interface BackendHealthResponse {
+  status: string;
+  service?: string;
+  version?: string;
+  timestamp?: string;
+}
+
 export interface ExecuteAgentStreamRequest {
   sessionId?: string;
   message: string;
