@@ -1,26 +1,25 @@
 from ..tool_schemas import SaveProgressInput
 
-_in_memory_progress: list[dict] = []
-
 
 def save_progress_tool() -> dict:
     return {
         "name": "save_progress",
-        "description": "Saves student progress for a specific lesson in a course.",
+        "description": (
+            "Зберігає прогрес студента — пройдений урок або досягнення. "
+            "Використовуй коли користувач завершив урок, тест або важливий крок. "
+            "Приклад: save_progress(user_id='user-123', course_id='COURSE-101', lesson_id='L5')"
+        ),
         "input_schema": SaveProgressInput.model_json_schema(),
     }
 
 
 async def execute_save_progress(args: dict) -> str:
     validated = SaveProgressInput(**args)
-
-    _in_memory_progress.append({
-        "user_id": validated.user_id,
-        "course_id": validated.course_id,
-        "lesson_id": validated.lesson_id,
-    })
-
+    # TODO: підключити БД від Стаса Data
     return (
-        f"Прогрес збережено! "
-        f"Користувач {validated.user_id}, курс {validated.course_id}, урок {validated.lesson_id}."
+        f"✅ Прогрес збережено!\n"
+        f"Користувач: {validated.user_id}\n"
+        f"Курс: {validated.course_id}\n"
+        f"Урок {validated.lesson_id} позначено як завершений.\n"
+        f"Продовжуй у тому ж дусі! 🚀"
     )

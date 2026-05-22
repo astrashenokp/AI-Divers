@@ -6,6 +6,12 @@ from pydantic import ValidationError
 
 from tools.tool_registry import get_tool_registry
 from tools.http_request_tool import ToolGuardrailError
+from tools.tool_guardrails import (
+    check_tool_allowed_in_domain,
+    check_step_limit,
+    sanitize_args,
+    VALID_DOMAINS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,22 +25,8 @@ ERROR_TYPE_UNKNOWN_TOOL = "unknown_tool"
 ERROR_TYPE_VALIDATION   = "validation_error"
 ERROR_TYPE_BLOCKED      = "blocked"
 ERROR_TYPE_RUNTIME      = "runtime_error"
-ERROR_TYPE_STEP_LIMIT   = "step_limit_exceeded"
-ERROR_TYPE_CROSS_DOMAIN = "cross_domain_blocked"
 
-# ── Domain scoping ────────────────────────────────────────────────────────
-# Domain-specific tools — agent from one domain cannot call tools of another.
-# Shared tools are allowed from any domain.
-
-DOMAIN_TOOLS: dict[str, list[str]] = {
-    "education": ["course_search", "course_info", "save_progress"],
-    "ecommerce": ["product_search", "order_status", "check_price"],
-    "tourism":   ["hotel_search", "itinerary_plan", "get_weather"],
-}
-
-SHARED_TOOL_NAMES: set[str] = {
-    "get_current_time", "search_web", "save_note", "http_request",
-}
+VALID_DOMAINS = frozenset({"ecommerce", "education", "tourism", "general"})
 
 
 def _now_iso() -> str:
@@ -58,20 +50,22 @@ def _make_result(
     started_at: str,
     completed_at: str,
     execution_id: str | None,
+    domain: str | None = None,
     error_type: str | None = None,
 ) -> dict:
     """
-    Unified ToolResult dict.
+    Unified ToolResult dict — shape is guaranteed regardless of success or failure.
 
     {
         "tool_name":    str,
         "status":       "success" | "error" | "blocked" | "requires_confirmation",
-        "result":       str,          # human-readable output or error message
+        "result":       str,
         "started_at":   str,          # ISO 8601 UTC
         "completed_at": str,          # ISO 8601 UTC
         "duration_ms":  int,
         "execution_id": str | None,
-        "error_type":   str | None,   # None when status == "success"
+        "domain":       str | None,
+        "error_type":   str | None,
     }
     """
     return {
@@ -82,6 +76,7 @@ def _make_result(
         "completed_at": completed_at,
         "duration_ms":  _duration_ms(started_at, completed_at),
         "execution_id": execution_id,
+        "domain":       domain,
         "error_type":   error_type,
     }
 
@@ -97,88 +92,97 @@ async def execute_tool_call(
     execution_id: str | None = None,
     domain: str | None = None,
     step_count: int = 0,
-    max_steps: int = 0,
 ) -> dict:
     """
     Central entry point for tool execution.
 
-    Called by Alina's agent after the LLM decides to use a tool.
-    Relayed as SSE events by Stas API (tool_call_started / tool_call_finished).
+    Runtime safety enforced here (not in prompts):
+    - Domain tool allowlist check
+    - Step limit (hard ceiling)
+    - Guardrail errors from tools (blocked addresses, bad methods)
+    - Input sanitization for safe logging
 
-    Parameters:
-        tool_name:      Name of the tool to execute.
-        args:           Arguments as a dict matching the tool's input schema.
-        execution_id:   Unique execution ID for tracking / SSE.
-        domain:         Domain the agent is running in (education, ecommerce, ...).
-                        Used for cross-domain guardrail.
-        step_count:     Current step count in the agent loop.
-        max_steps:      Maximum allowed steps. If step_count >= max_steps the
-                        call is blocked (defense-in-depth).
+    Args:
+        tool_name:    name of the tool to call
+        args:         raw argument dict from the LLM
+        execution_id: trace ID from agent loop
+        domain:       active domain scope
+        step_count:   current step in agent loop (for ceiling check)
 
     Returns:
         ToolResult dict — always, never raises.
     """
     started_at = _now_iso()
-    registry = get_tool_registry()
 
-    # ── 0a. Step limit guardrail (defense-in-depth) ────────────────────────
-    if max_steps > 0 and step_count >= max_steps:
+    # ── Domain validation ──────────────────────────────────────────────────
+    if domain is not None and domain not in VALID_DOMAINS:
+        logger.warning(
+            "Unknown domain | domain=%s | tool=%s | execution_id=%s",
+            domain, tool_name, execution_id,
+        )
+        domain = None  # graceful fallback
+
+    # ── Log safely — redact sensitive args ────────────────────────────────
+    safe_args = sanitize_args(args)
+    logger.debug(
+        "Tool call | tool=%s | domain=%s | step=%d | args=%s | execution_id=%s",
+        tool_name, domain, step_count, safe_args, execution_id,
+    )
+
+    try:
+        # ── Guardrail 1: Step limit (hard ceiling) ─────────────────────────
+        # Викладач: "Стеля не обговорюється. Max steps, timeout, budget."
+        check_step_limit(step_count, domain)
+
+        # ── Guardrail 2: Domain allowlist ──────────────────────────────────
+        # Викладач: "Tool allowlist — missing tools can't be called"
+        check_tool_allowed_in_domain(tool_name, domain)
+
+    except ToolGuardrailError as exc:
         completed_at = _now_iso()
         logger.warning(
-            "Step limit exceeded | tool=%s | step_count=%d | max_steps=%d | exec=%s",
-            tool_name, step_count, max_steps, execution_id,
+            "Guardrail blocked (pre-execution) | tool=%s | domain=%s | execution_id=%s | reason=%s",
+            tool_name, domain, execution_id, exc,
         )
         return _make_result(
             tool_name=tool_name,
             status="error",
-            result=(
-                f"Step limit exceeded ({step_count}/{max_steps}). "
-                f"Tool '{tool_name}' was blocked."
-            ),
+            result=str(exc),
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
-            error_type=ERROR_TYPE_STEP_LIMIT,
+            domain=domain,
+            error_type=ERROR_TYPE_BLOCKED,
         )
 
-    # ── 0b. Cross-domain guardrail ─────────────────────────────────────────
-    if domain and domain in DOMAIN_TOOLS:
-        allowed = set(DOMAIN_TOOLS[domain]) | SHARED_TOOL_NAMES
-        if tool_name not in allowed:
-            completed_at = _now_iso()
-            logger.warning(
-                "Cross-domain blocked | tool=%s | domain=%s | exec=%s",
-                tool_name, domain, execution_id,
-            )
-            return _make_result(
-                tool_name=tool_name,
-                status="error",
-                result=(
-                    f"Tool '{tool_name}' is not available in the '{domain}' domain."
-                ),
-                started_at=started_at,
-                completed_at=completed_at,
-                execution_id=execution_id,
-                error_type=ERROR_TYPE_CROSS_DOMAIN,
-            )
+    registry = get_tool_registry(domain=domain)
 
-    # ── 1. Unknown tool ────────────────────────────────────────────────────
+    # ── Unknown tool ───────────────────────────────────────────────────────
     if tool_name not in registry:
         completed_at = _now_iso()
+        all_registry = get_tool_registry(domain=None)
+        if tool_name in all_registry and domain is not None:
+            msg = (
+                f"Tool '{tool_name}' is not available in domain '{domain}'. "
+                f"Available tools: {list(registry.keys())}"
+            )
+        else:
+            msg = (
+                f"Tool '{tool_name}' is not available. "
+                f"Available tools: {list(registry.keys())}"
+            )
         logger.warning(
-            "Unknown tool | tool=%s | execution_id=%s",
-            tool_name, execution_id,
+            "Unknown tool | tool=%s | domain=%s | execution_id=%s",
+            tool_name, domain, execution_id,
         )
         return _make_result(
             tool_name=tool_name,
             status="error",
-            result=(
-                f"Tool '{tool_name}' is not available. "
-                f"Available tools: {list(registry.keys())}"
-            ),
+            result=msg,
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
+            domain=domain,
             error_type=ERROR_TYPE_UNKNOWN_TOOL,
         )
 
@@ -188,8 +192,10 @@ async def execute_tool_call(
         output = await tool_fn(args)
         completed_at = _now_iso()
         logger.info(
-            "Tool success | tool=%s | execution_id=%s",
-            tool_name, execution_id,
+            "Tool success | tool=%s | domain=%s | duration_ms=%d | execution_id=%s",
+            tool_name, domain,
+            _duration_ms(started_at, completed_at),
+            execution_id,
         )
         return _make_result(
             tool_name=tool_name,
@@ -198,14 +204,15 @@ async def execute_tool_call(
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
+            domain=domain,
         )
 
-    # ── 2. Guardrail block ─────────────────────────────────────────────────
+    # ── Guardrail block (from tool itself) ─────────────────────────────────
     except ToolGuardrailError as exc:
         completed_at = _now_iso()
         logger.warning(
-            "Guardrail blocked | tool=%s | execution_id=%s | reason=%s",
-            tool_name, execution_id, exc,
+            "Guardrail blocked (in-execution) | tool=%s | domain=%s | execution_id=%s | reason=%s",
+            tool_name, domain, execution_id, exc,
         )
         return _make_result(
             tool_name=tool_name,
@@ -214,15 +221,16 @@ async def execute_tool_call(
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
+            domain=domain,
             error_type=ERROR_TYPE_BLOCKED,
         )
 
-    # ── 3. Validation error ────────────────────────────────────────────────
+    # ── Validation error ───────────────────────────────────────────────────
     except ValidationError as exc:
         completed_at = _now_iso()
         logger.warning(
-            "Validation error | tool=%s | execution_id=%s",
-            tool_name, execution_id,
+            "Validation error | tool=%s | domain=%s | execution_id=%s",
+            tool_name, domain, execution_id,
         )
         return _make_result(
             tool_name=tool_name,
@@ -231,15 +239,16 @@ async def execute_tool_call(
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
+            domain=domain,
             error_type=ERROR_TYPE_VALIDATION,
         )
 
-    # ── 4. Runtime error ───────────────────────────────────────────────────
+    # ── Runtime error ──────────────────────────────────────────────────────
     except Exception as exc:
         completed_at = _now_iso()
         logger.error(
-            "Runtime error | tool=%s | execution_id=%s | error=%s",
-            tool_name, execution_id, type(exc).__name__,
+            "Runtime error | tool=%s | domain=%s | execution_id=%s | error=%s",
+            tool_name, domain, execution_id, type(exc).__name__,
             exc_info=True,
         )
         return _make_result(
@@ -249,5 +258,6 @@ async def execute_tool_call(
             started_at=started_at,
             completed_at=completed_at,
             execution_id=execution_id,
+            domain=domain,
             error_type=ERROR_TYPE_RUNTIME,
         )
