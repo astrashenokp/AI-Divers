@@ -1,14 +1,30 @@
+import json
 import logging
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from agents.agent_state import AgentState
 from agents.router.prompts import ROUTER_SYSTEM_PROMPT
 
+_DOTENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_DOTENV_PATH)
+
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 VALID_DOMAINS = {"ecommerce", "education", "tourism", "general"}
+
+
+def _get_openai_client():
+    from openai import OpenAI
+    return OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=GROQ_API_KEY,
+    )
 
 
 def router_node(state: AgentState) -> dict:
@@ -22,29 +38,29 @@ def router_node(state: AgentState) -> dict:
 
 
 def _classify_with_llm(messages: list) -> str:
-    if ANTHROPIC_API_KEY:
+    if GROQ_API_KEY:
         try:
-            return _classify_with_anthropic(messages)
+            return _classify_with_groq(messages)
         except Exception as e:
             logger.warning("LLM classification failed: %s, using fallback", e)
 
     return _classify_fallback(messages)
 
 
-def _classify_with_anthropic(messages: list) -> str:
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+def _classify_with_groq(messages: list) -> str:
+    client = _get_openai_client()
     last_text = _get_last_text(messages)
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20260514",
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
+            {"role": "user", "content": last_text or "hello"},
+        ],
         max_tokens=10,
-        system=ROUTER_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": last_text or "hello"}],
     )
 
-    domain = response.content[0].text.strip().lower()
+    domain = response.choices[0].message.content.strip().lower()
     return domain if domain in VALID_DOMAINS else "general"
 
 

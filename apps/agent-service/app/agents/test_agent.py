@@ -204,9 +204,9 @@ def run_sync_tests():
 async def run_async_tests():
     print("\n🧪 Education graph integration tests:")
 
-    has_api_key = bool(os.getenv("ANTHROPIC_API_KEY"))
+    has_api_key = bool(os.getenv("GROQ_API_KEY"))
     if not has_api_key:
-        print("  ⚠️  ANTHROPIC_API_KEY не встановлено — тести будуть у демо-режимі")
+        print("  ⚠️  GROQ_API_KEY не встановлено — тести будуть у демо-режимі")
 
     await test_education_graph_simple_query()
     await test_education_graph_with_tool_call()
