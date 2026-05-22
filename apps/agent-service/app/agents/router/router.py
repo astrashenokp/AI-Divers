@@ -21,6 +21,13 @@ VALID_DOMAINS = {"ecommerce", "education", "tourism", "general"}
 
 def _get_openai_client():
     from openai import AsyncOpenAI
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        return AsyncOpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=gemini_key,
+        )
     return AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY,
@@ -52,8 +59,10 @@ async def _classify_with_groq(messages: list) -> str:
     text = _get_last_text(messages) or "hello"
 
     try:
+        import os
+        model_name = "gemini-2.5-flash" if os.getenv("GEMINI_API_KEY") else GROQ_MODEL
         response = await client.chat.completions.create(
-            model=GROQ_MODEL,
+            model=model_name,
             messages=[
                 {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
                 {"role": "user", "content": text},

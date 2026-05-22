@@ -67,6 +67,13 @@ DOMAIN_CONFIG = {
 
 def _get_openai_client():
     from openai import AsyncOpenAI
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        return AsyncOpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=gemini_key,
+        )
     return AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY,
@@ -206,11 +213,14 @@ def _build_openai_messages(
             continue
 
         if role == "tool":
-            messages.append({
+            tool_msg = {
                 "role": "tool",
                 "tool_call_id": msg.get("tool_call_id", ""),
                 "content": content if isinstance(content, str) else str(content),
-            })
+            }
+            if "name" in msg:
+                tool_msg["name"] = msg["name"]
+            messages.append(tool_msg)
         elif role == "assistant":
             entry: dict = {"role": "assistant"}
             if isinstance(content, str):
@@ -285,8 +295,10 @@ async def reason_node(state: AgentState) -> dict:
     client = _get_openai_client()
     api_messages = _build_openai_messages(state["messages"], system_prompt)
 
+    import os
+    model_name = "gemini-2.5-flash" if os.getenv("GEMINI_API_KEY") else GROQ_MODEL
     kwargs = {
-        "model": GROQ_MODEL,
+        "model": model_name,
         "messages": api_messages,
         "max_tokens": 4096,
     }
@@ -413,6 +425,7 @@ async def tool_node(state: AgentState) -> dict:
         tool_results.append({
             "role": "tool",
             "tool_call_id": tc["id"],
+            "name": tc["function"]["name"],
             "content": result.get("result", str(result)),
         })
 
