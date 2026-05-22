@@ -18,25 +18,25 @@ from tools.http_request_tool import ToolGuardrailError
 DOMAIN_TOOL_ALLOWLIST: dict[str, frozenset[str]] = {
     "ecommerce": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "product_search", "order_status", "check_price",
     }),
     "education": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "course_search", "course_info", "save_progress",
     }),
     "tourism": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "hotel_search", "itinerary_plan", "get_weather",
     }),
     "general": frozenset({
         # shared only — no domain tools
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
     }),
 }
 
