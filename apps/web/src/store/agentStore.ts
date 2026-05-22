@@ -3,14 +3,18 @@ import type {
   AgentDraft,
   ApiErrorShape,
   GuardrailConfig,
-  ToolType,
+  ToolTypesResponse,
 } from "../lib/types";
+
+export const EMPTY_TOOL_TYPES_RESPONSE: ToolTypesResponse = {
+  categories: [],
+};
 
 export interface AgentStoreState {
   agents: Agent[];
   selectedAgentId?: string;
   agentDraft?: AgentDraft;
-  toolTypes: ToolType[];
+  toolTypes: ToolTypesResponse;
   guardrails?: GuardrailConfig;
   isLoading: boolean;
   error?: ApiErrorShape;
@@ -25,7 +29,7 @@ const listeners = new Set<Listener>();
 
 let state: AgentStoreState = {
   agents: [],
-  toolTypes: [],
+  toolTypes: EMPTY_TOOL_TYPES_RESPONSE,
   isLoading: false,
 };
 
@@ -104,7 +108,7 @@ export const agentStoreActions = {
     setAgentStoreState({ agentDraft });
   },
 
-  setToolTypes: (toolTypes: ToolType[]) => {
+  setToolTypes: (toolTypes: ToolTypesResponse) => {
     setAgentStoreState({ toolTypes });
   },
 

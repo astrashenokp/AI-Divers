@@ -11,6 +11,7 @@ import type {
   AgentTool,
   ApiErrorShape,
   GuardrailConfig,
+  ToolTypesResponse,
 } from "../lib/types";
 import {
   agentStoreActions,
@@ -21,6 +22,10 @@ import {
 const toApiError = (error: unknown): ApiErrorShape => ({
   message: error instanceof Error ? error.message : "Unexpected builder error.",
 });
+
+const emptyToolTypesResponse: ToolTypesResponse = {
+  categories: [],
+};
 
 export const useAgentBuilder = (agentId?: string) => {
   const state = useSyncExternalStore(
@@ -48,7 +53,7 @@ export const useAgentBuilder = (agentId?: string) => {
       return toolTypes;
     } catch (error) {
       agentStoreActions.setError(toApiError(error));
-      return [];
+      return emptyToolTypesResponse;
     } finally {
       agentStoreActions.setLoading(false);
     }
@@ -154,6 +159,7 @@ export const useAgentBuilder = (agentId?: string) => {
     selectedAgent,
     agentDraft: state.agentDraft,
     toolTypes: state.toolTypes,
+    toolCategories: state.toolTypes.categories,
     guardrails: state.guardrails ?? selectedAgent?.guardrails,
     isLoading: state.isLoading,
     error: state.error,
