@@ -21,7 +21,11 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
   }
 
   return (
-    <section className={styles.list} aria-label="Повідомлення чату">
+    <section
+      className={styles.list}
+      id="chat-messages"
+      aria-label="Повідомлення чату"
+    >
       {messages.map((message) => (
         <ChatMessageBubble key={message.id} message={message} />
       ))}
