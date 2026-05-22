@@ -1,5 +1,5 @@
 .page {
-  min-height: 100vh;
+  min-height: calc(100dvh - var(--app-header-height));
   padding: 32px;
 }
 

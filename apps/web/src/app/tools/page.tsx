@@ -1,36 +1,7 @@
-import {
-  ArrowLeft,
-  BookOpen,
-  Compass,
-  MessageSquare,
-  ShoppingBag,
-  Wrench,
-} from "lucide-react";
+import { ArrowLeft, Wrench } from "lucide-react";
 import Link from "next/link";
 import styles from "./page.module.scss";
-
-const toolCategories = [
-  {
-    title: "Освіта",
-    description: "Інструменти для навчальних асистентів, пояснень і пошуку знань.",
-    icon: BookOpen,
-  },
-  {
-    title: "Туризм",
-    description: "Інструменти для маршрутів, подорожей, місць і рекомендацій.",
-    icon: Compass,
-  },
-  {
-    title: "E-commerce (Продажі)",
-    description: "Інструменти для товарів, замовлень, продажів і клієнтських запитів.",
-    icon: ShoppingBag,
-  },
-  {
-    title: "Інше",
-    description: "Загальні інструменти для задач, які не входять в основні категорії.",
-    icon: MessageSquare,
-  },
-];
+import { toolCategories } from "./toolsData";
 
 export default function ToolsPage() {
   return (
@@ -48,21 +19,28 @@ export default function ToolsPage() {
           <div>
             <h1 id="tools-title">Базові tools</h1>
             <p>
-              Тут будуть категорії інструментів, які можна підключати до
-              агента. Детальне налаштування зʼявиться пізніше.
+              Оберіть категорію, щоб переглянути доступні tools з
+              agent-service, їх backend domain і базові guardrails.
             </p>
           </div>
         </div>
 
         <div className={styles.categoryGrid}>
-          {toolCategories.map(({ title, description, icon: Icon }) => (
-            <article className={styles.categoryCard} key={title}>
+          {toolCategories.map(({ title, description, domain, icon: Icon }) => (
+            <Link
+              className={styles.categoryCard}
+              href={domain === "general" ? "/chat?domain=general" : `/tools/${domain}`}
+              key={domain}
+            >
               <span className={styles.categoryIcon}>
                 <Icon size={22} aria-hidden />
               </span>
               <h2>{title}</h2>
               <p>{description}</p>
-            </article>
+              <span className={styles.cardAction}>
+                {domain === "general" ? "Відкрити чат" : "Переглянути tools"}
+              </span>
+            </Link>
           ))}
         </div>
       </section>
