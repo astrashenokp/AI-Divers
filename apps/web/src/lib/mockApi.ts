@@ -20,7 +20,7 @@ import type {
   GuardrailConfig,
   LiveTrackingEvent,
   StreamEventHandlers,
-  ToolType,
+  ToolTypesResponse,
   WidgetConfig,
 } from "./types";
 
@@ -110,7 +110,7 @@ export async function updateAgent(
   return clone(updatedAgent);
 }
 
-export async function listToolTypes(): Promise<ToolType[]> {
+export async function listToolTypes(): Promise<ToolTypesResponse> {
   await wait(MOCK_DELAY_MS);
   return clone(mockToolTypes);
 }

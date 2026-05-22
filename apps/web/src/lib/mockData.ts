@@ -6,7 +6,7 @@ import type {
   DeploymentSettings,
   GuardrailConfig,
   LiveTrackingEvent,
-  ToolType,
+  ToolTypesResponse,
 } from "./types";
 
 const now = "2026-05-22T10:00:00.000Z";
@@ -29,9 +29,91 @@ export const mockDeploymentSettings: DeploymentSettings = {
   updatedAt: now,
 };
 
-export const mockToolTypes: ToolType[] = [
+export const mockToolTypes: ToolTypesResponse = {
+  categories: [
+    {
+      id: "education",
+      label: "Освіта",
+      description:
+        "Tools for learning assistants, course search, tutoring, and knowledge lookup.",
+      tools: [
+        {
+          type: "web_search",
+          name: "Education Web Search",
+          description: "Searches public learning resources.",
+          category: "education",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            allowedDomains: "string[]",
+          },
+        },
+      ],
+    },
+    {
+      id: "stores",
+      label: "Магазини",
+      description:
+        "Tools for product lookup, order status, and store integrations.",
+      tools: [
+        {
+          type: "http_request",
+          name: "Store API Request",
+          description: "Calls approved store APIs for product or order data.",
+          category: "stores",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            baseUrl: "string",
+            allowedMethods: "string[]",
+          },
+          requiresSecret: true,
+        },
+      ],
+    },
+    {
+      id: "tourism",
+      label: "Туризм",
+      description:
+        "Tools for travel research, destinations, routes, and booking integrations.",
+      tools: [
+        {
+          type: "web_search",
+          name: "Travel Research Search",
+          description: "Searches public travel and destination information.",
+          category: "tourism",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            allowedDomains: "string[]",
+          },
+        },
+      ],
+    },
+    {
+      id: "finance",
+      label: "Фінанси",
+      description:
+        "Tools for financial data, reports, and account-safe integrations.",
+      tools: [
+        {
+          type: "database_query",
+          name: "Finance Data Query",
+          description: "Runs safe read-only queries against finance data.",
+          category: "finance",
+          requiresHumanConfirmation: true,
+          configSchema: {
+            connectionName: "string",
+            readOnly: "boolean",
+          },
+          requiresSecret: true,
+        },
+      ],
+    },
+  ],
+};
+
+export const mockLegacyToolTypes = [
   {
     type: "web_search",
+    category: "education",
     displayName: "Web Search",
     description: "Searches public web results for current information.",
     configSchema: {
@@ -44,6 +126,7 @@ export const mockToolTypes: ToolType[] = [
   },
   {
     type: "http_request",
+    category: "stores",
     displayName: "HTTP Request",
     description: "Calls approved HTTP endpoints with configured methods.",
     configSchema: {
@@ -57,6 +140,7 @@ export const mockToolTypes: ToolType[] = [
   },
   {
     type: "database_query",
+    category: "finance",
     displayName: "Database Query",
     description: "Runs safe read-only queries against configured data sources.",
     configSchema: {
@@ -75,6 +159,7 @@ export const mockAgentTools: AgentTool[] = [
     id: "tool-web-search-1",
     agentId: "agent-hackathon-mentor",
     type: "web_search",
+    category: "education",
     name: "Public Web Search",
     enabled: true,
     config: {
