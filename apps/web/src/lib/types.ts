@@ -10,9 +10,22 @@ export type JsonObject = {
 
 export type AgentStatus = "draft" | "active" | "archived";
 
-export type ToolTypeKey = "web_search" | "http_request" | "database_query";
+export type ToolTypeKey =
+  | "get_current_time"
+  | "search_web"
+  | "save_note"
+  | "http_request"
+  | "product_search"
+  | "order_status"
+  | "check_price"
+  | "course_search"
+  | "course_info"
+  | "save_progress"
+  | "hotel_search"
+  | "itinerary_plan"
+  | "get_weather";
 
-export type ToolCategoryId = "education" | "stores" | "tourism" | "finance";
+export type ToolCategoryId = "education" | "tourism" | "ecommerce" | "general";
 
 export type ToolRunStatus = "idle" | "running" | "completed" | "failed";
 

@@ -1,12 +1,12 @@
 .page {
-  height: 100dvh;
+  height: calc(100dvh - var(--app-header-height));
   overflow: hidden;
   padding: 24px;
 }
 
 .shell {
   width: min(1280px, 100%);
-  height: calc(100dvh - 48px);
+  height: calc(100dvh - var(--app-header-height) - 48px);
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -42,7 +42,7 @@
   }
 
   .shell {
-    height: calc(100dvh - 28px);
+    height: calc(100dvh - var(--app-header-height) - 28px);
     min-height: 0;
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(160px, 32dvh);
@@ -59,7 +59,7 @@
   }
 
   .shell {
-    height: calc(100dvh - 20px);
+    height: calc(100dvh - var(--app-header-height) - 20px);
     gap: 10px;
     grid-template-rows: minmax(0, 1fr) minmax(120px, 26dvh);
   }

@@ -6,6 +6,7 @@ import type {
   DeploymentSettings,
   GuardrailConfig,
   LiveTrackingEvent,
+  ToolType,
   ToolTypesResponse,
 } from "./types";
 
@@ -14,18 +15,22 @@ const now = "2026-05-22T10:00:00.000Z";
 export const mockGuardrails: GuardrailConfig = {
   maxSteps: 6,
   forbiddenTopics: ["medical diagnosis", "illegal activity"],
-  requireHumanConfirmationForTools: ["database_query"],
+  requireHumanConfirmationForTools: [
+    "http_request",
+    "save_progress",
+    "save_note",
+  ],
 };
 
 export const mockDeploymentSettings: DeploymentSettings = {
-  agentId: "agent-hackathon-mentor",
-  deploymentSlug: "hackathon-mentor",
+  agentId: "agent-general-assistant",
+  deploymentSlug: "general-assistant",
   restEnabled: true,
   webhookEnabled: false,
   widgetEnabled: true,
   publicAccessEnabled: true,
   widgetIframeCode:
-    '<iframe src="http://localhost:8080/api/v1/public/widgets/hackathon-mentor/config"></iframe>',
+    '<iframe src="http://localhost:8080/api/v1/public/widgets/general-assistant/config"></iframe>',
   updatedAt: now,
 };
 
@@ -35,37 +40,41 @@ export const mockToolTypes: ToolTypesResponse = {
       id: "education",
       label: "Освіта",
       description:
-        "Tools for learning assistants, course search, tutoring, and knowledge lookup.",
+        "Tools for learning assistants, course search, course details, and student progress.",
       tools: [
         {
-          type: "web_search",
-          name: "Education Web Search",
-          description: "Searches public learning resources.",
+          type: "course_search",
+          name: "Course Search",
+          description: "Searches learning courses by topic, skill, or level.",
           category: "education",
           requiresHumanConfirmation: false,
           configSchema: {
-            allowedDomains: "string[]",
+            query: "string",
+            level: "beginner | intermediate | advanced | any",
+            max_results: "number",
           },
         },
-      ],
-    },
-    {
-      id: "stores",
-      label: "Магазини",
-      description:
-        "Tools for product lookup, order status, and store integrations.",
-      tools: [
         {
-          type: "http_request",
-          name: "Store API Request",
-          description: "Calls approved store APIs for product or order data.",
-          category: "stores",
+          type: "course_info",
+          name: "Course Info",
+          description: "Returns details for a specific course.",
+          category: "education",
           requiresHumanConfirmation: false,
           configSchema: {
-            baseUrl: "string",
-            allowedMethods: "string[]",
+            course_id: "string",
           },
-          requiresSecret: true,
+        },
+        {
+          type: "save_progress",
+          name: "Save Progress",
+          description: "Saves student lesson progress.",
+          category: "education",
+          requiresHumanConfirmation: true,
+          configSchema: {
+            user_id: "string",
+            course_id: "string",
+            lesson_id: "string",
+          },
         },
       ],
     },
@@ -73,35 +82,136 @@ export const mockToolTypes: ToolTypesResponse = {
       id: "tourism",
       label: "Туризм",
       description:
-        "Tools for travel research, destinations, routes, and booking integrations.",
+        "Tools for hotel search, travel itinerary planning, and weather forecasts.",
       tools: [
         {
-          type: "web_search",
-          name: "Travel Research Search",
-          description: "Searches public travel and destination information.",
+          type: "hotel_search",
+          name: "Hotel Search",
+          description: "Searches hotels by city, dates, and guest count.",
           category: "tourism",
           requiresHumanConfirmation: false,
           configSchema: {
-            allowedDomains: "string[]",
+            city: "string",
+            check_in: "YYYY-MM-DD",
+            check_out: "YYYY-MM-DD",
+            guests: "number",
+          },
+        },
+        {
+          type: "itinerary_plan",
+          name: "Itinerary Plan",
+          description: "Builds a travel plan for a destination.",
+          category: "tourism",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            destination: "string",
+            days: "number",
+            interests: "string",
+          },
+        },
+        {
+          type: "get_weather",
+          name: "Get Weather",
+          description: "Returns a weather forecast for a city.",
+          category: "tourism",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            city: "string",
+            days: "number",
           },
         },
       ],
     },
     {
-      id: "finance",
-      label: "Фінанси",
+      id: "ecommerce",
+      label: "E-commerce (Продажі)",
       description:
-        "Tools for financial data, reports, and account-safe integrations.",
+        "Tools for product lookup, order status, prices, sales flows, and customer requests.",
       tools: [
         {
-          type: "database_query",
-          name: "Finance Data Query",
-          description: "Runs safe read-only queries against finance data.",
-          category: "finance",
+          type: "product_search",
+          name: "Product Search",
+          description: "Searches products by name, keyword, or category.",
+          category: "ecommerce",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            query: "string",
+            category: "string",
+            max_results: "number",
+          },
+        },
+        {
+          type: "order_status",
+          name: "Order Status",
+          description: "Checks order status and tracking information.",
+          category: "ecommerce",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            order_id: "string",
+          },
+        },
+        {
+          type: "check_price",
+          name: "Check Price",
+          description: "Checks price and availability for a product.",
+          category: "ecommerce",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            product_id: "string",
+          },
+        },
+      ],
+    },
+    {
+      id: "general",
+      label: "Інше",
+      description:
+        "Shared tools available across domains and useful for general assistant tasks.",
+      tools: [
+        {
+          type: "get_current_time",
+          name: "Get Current Time",
+          description: "Returns the current date and time for a timezone.",
+          category: "general",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            timezone: "string",
+          },
+        },
+        {
+          type: "search_web",
+          name: "Search Web",
+          description: "Searches the web for current information.",
+          category: "general",
+          requiresHumanConfirmation: false,
+          configSchema: {
+            query: "string",
+            max_results: "number",
+          },
+        },
+        {
+          type: "save_note",
+          name: "Save Note",
+          description: "Saves an important note for the current session.",
+          category: "general",
           requiresHumanConfirmation: true,
           configSchema: {
-            connectionName: "string",
-            readOnly: "boolean",
+            session_id: "string",
+            content: "string",
+          },
+        },
+        {
+          type: "http_request",
+          name: "HTTP Request",
+          description: "Calls a public external API with runtime guardrails.",
+          category: "general",
+          requiresHumanConfirmation: true,
+          configSchema: {
+            url: "string",
+            method: "GET | POST | PUT | PATCH | DELETE",
+            headers: "object",
+            body: "string",
+            timeout_seconds: "number",
           },
           requiresSecret: true,
         },
@@ -110,61 +220,41 @@ export const mockToolTypes: ToolTypesResponse = {
   ],
 };
 
-export const mockLegacyToolTypes = [
-  {
-    type: "web_search",
-    category: "education",
-    displayName: "Web Search",
-    description: "Searches public web results for current information.",
-    configSchema: {
-      required: ["provider"],
-      properties: {
-        provider: { type: "string" },
-      },
-    },
-    requiresSecret: false,
-  },
-  {
-    type: "http_request",
-    category: "stores",
-    displayName: "HTTP Request",
-    description: "Calls approved HTTP endpoints with configured methods.",
-    configSchema: {
-      required: ["baseUrl"],
-      properties: {
-        baseUrl: { type: "string" },
-        allowedMethods: { type: "array" },
-      },
-    },
-    requiresSecret: true,
-  },
-  {
-    type: "database_query",
-    category: "finance",
-    displayName: "Database Query",
-    description: "Runs safe read-only queries against configured data sources.",
-    configSchema: {
-      required: ["connectionName"],
-      properties: {
-        connectionName: { type: "string" },
-        readOnly: { type: "boolean" },
-      },
-    },
-    requiresSecret: true,
-  },
-];
+export const mockLegacyToolTypes: ToolType[] =
+  mockToolTypes.categories.flatMap((category) =>
+    category.tools.map((tool) => ({
+      type: tool.type,
+      category: category.id,
+      displayName: tool.name,
+      description: tool.description,
+      configSchema: tool.configSchema,
+      requiresSecret: tool.requiresSecret,
+    })),
+  );
 
 export const mockAgentTools: AgentTool[] = [
   {
-    id: "tool-web-search-1",
-    agentId: "agent-hackathon-mentor",
-    type: "web_search",
-    category: "education",
-    name: "Public Web Search",
+    id: "tool-current-time-1",
+    agentId: "agent-general-assistant",
+    type: "get_current_time",
+    category: "general",
+    name: "Get Current Time",
     enabled: true,
     config: {
-      provider: "mock",
-      resultLimit: 3,
+      timezone: "Europe/Kyiv",
+    },
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "tool-search-web-1",
+    agentId: "agent-general-assistant",
+    type: "search_web",
+    category: "general",
+    name: "Search Web",
+    enabled: true,
+    config: {
+      max_results: 3,
     },
     createdAt: now,
     updatedAt: now,
@@ -173,14 +263,14 @@ export const mockAgentTools: AgentTool[] = [
 
 export const mockAgents: Agent[] = [
   {
-    id: "agent-hackathon-mentor",
-    name: "Hackathon Mentor",
+    id: "agent-general-assistant",
+    name: "General Assistant",
     description:
-      "Helps teams sharpen project scope, demo flow, and technical tradeoffs.",
+      "Helps users answer practical questions with shared tools such as time, web search, notes, and guarded HTTP requests.",
     systemPrompt:
-      "You are a practical hackathon mentor. Give concise, actionable guidance and ask for missing context when needed.",
+      "You are a helpful general assistant. Use available tools only when they improve the answer, and explain tool results clearly.",
     modelProvider: "mock",
-    modelName: "mock-hackathon-mentor",
+    modelName: "mock-general-assistant",
     status: "active",
     tools: mockAgentTools,
     guardrails: mockGuardrails,
@@ -189,24 +279,24 @@ export const mockAgents: Agent[] = [
     updatedAt: now,
   },
   {
-    id: "agent-research-assistant",
-    name: "Research Assistant",
+    id: "agent-education-assistant",
+    name: "Education Assistant",
     description:
-      "Helps collect and summarize research notes with transparent sources.",
+      "Helps students find courses, understand course details, and track learning progress.",
     systemPrompt:
-      "You are a careful research assistant. Separate known facts from assumptions and cite tool outputs when available.",
+      "You are an education assistant. Help users find suitable courses and explain learning options clearly.",
     modelProvider: "mock",
-    modelName: "mock-research-assistant",
+    modelName: "mock-education-assistant",
     status: "draft",
     tools: [],
     guardrails: {
-      maxSteps: 5,
+      maxSteps: 10,
       forbiddenTopics: ["private credentials"],
-      requireHumanConfirmationForTools: ["http_request", "database_query"],
+      requireHumanConfirmationForTools: ["save_progress", "http_request"],
     },
     deployment: {
-      agentId: "agent-research-assistant",
-      deploymentSlug: "research-assistant",
+      agentId: "agent-education-assistant",
+      deploymentSlug: "education-assistant",
       restEnabled: false,
       webhookEnabled: false,
       widgetEnabled: false,
@@ -223,7 +313,7 @@ export const mockSessionMessages: ChatMessage[] = [
     id: "message-user-1",
     sessionId: "session-demo-1",
     role: "user",
-    content: "Help me explain why Agentic Studio is more than a chatbot.",
+    content: "Який зараз час у Києві?",
     createdAt: now,
   },
   {
@@ -231,7 +321,7 @@ export const mockSessionMessages: ChatMessage[] = [
     sessionId: "session-demo-1",
     role: "assistant",
     content:
-      "Frame it as a configurable agent workspace: builder, tools, guardrails, live tracking, and deployment surfaces.",
+      "Я можу перевірити поточний час через get_current_time і повернути відповідь у цьому чаті.",
     createdAt: now,
   },
 ];
@@ -242,7 +332,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.EXECUTION_STARTED,
     stepNumber: 1,
-    summary: "Started execution for Hackathon Mentor.",
+    summary: "Started execution for General Assistant.",
     status: "running",
     timestamp: now,
   },
@@ -251,7 +341,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.REASONING_STEP,
     stepNumber: 2,
-    summary: "Deciding whether external context is needed.",
+    summary: "Deciding whether a shared tool is needed.",
     status: "running",
     timestamp: now,
   },
@@ -260,12 +350,12 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_STARTED,
     stepNumber: 3,
-    summary: "Searching for concise positioning language.",
-    toolName: "web_search",
+    summary: "Calling get_current_time for the requested timezone.",
+    toolName: "get_current_time",
     status: "running",
     timestamp: now,
     input: {
-      query: "agent builder live tracking deployment agent platform",
+      timezone: "Europe/Kyiv",
     },
   },
   {
@@ -273,12 +363,12 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_FINISHED,
     stepNumber: 4,
-    summary: "Search completed with summarized results.",
-    toolName: "web_search",
+    summary: "get_current_time completed successfully.",
+    toolName: "get_current_time",
     status: "completed",
     timestamp: now,
     output: {
-      resultCount: 3,
+      timezone: "Europe/Kyiv",
     },
   },
 ];

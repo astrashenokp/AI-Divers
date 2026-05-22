@@ -21,9 +21,14 @@ These notes track open frontend/backend contract questions for Polina and Stas A
 - Confirm `GET /api/v1/tool-types` returns an object with `categories`.
 - Confirm category ids are exactly:
   - `education`
-  - `stores`
   - `tourism`
-  - `finance`
+  - `ecommerce`
+  - `general`
+- Confirm backend tool keys match `agent-service`:
+  - shared/general: `get_current_time`, `search_web`, `save_note`, `http_request`
+  - education: `course_search`, `course_info`, `save_progress`
+  - tourism: `hotel_search`, `itinerary_plan`, `get_weather`
+  - ecommerce: `product_search`, `order_status`, `check_price`
 - Confirm whether tool templates use `name` or `displayName`.
 - Confirm whether `requiresHumanConfirmation` belongs on the template, attached tool, or both.
 

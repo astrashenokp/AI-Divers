@@ -29,16 +29,20 @@ export function AiDiverGuide({
   onCollapsedChange,
   collapsedLabel = "DiverBot",
   ariaLabel = "DiverBot помічник",
-  explainHref = "#chat-messages",
   toolsHref = "/tools",
 }: AiDiverGuideProps) {
   const [uncontrolledCollapsed, setUncontrolledCollapsed] =
     useState(defaultCollapsed);
+  const [isInstructionVisible, setIsInstructionVisible] = useState(false);
   const collapsed = isCollapsed ?? uncontrolledCollapsed;
 
   const setCollapsed = (nextCollapsed: boolean) => {
     if (isCollapsed === undefined) {
       setUncontrolledCollapsed(nextCollapsed);
+    }
+
+    if (nextCollapsed) {
+      setIsInstructionVisible(false);
     }
 
     onCollapsedChange?.(nextCollapsed);
@@ -62,7 +66,7 @@ export function AiDiverGuide({
     {
       id: "explain-chat",
       label: "Пояснити чат",
-      href: explainHref,
+      onClick: () => setIsInstructionVisible(true),
     },
     {
       id: "open-tools",
@@ -75,12 +79,44 @@ export function AiDiverGuide({
       onClick: () => setCollapsed(true),
     },
   ];
+  const shouldShowInstruction = actions === undefined && isInstructionVisible;
 
   return (
     <aside className={styles.guide} aria-label={ariaLabel}>
       <AiDiverMascot />
       <div className={styles.content}>
         <AiDiverBubble title={title} body={body} />
+        {shouldShowInstruction ? (
+          <div className={styles.instructionPanel}>
+            <strong>Як працює чат</strong>
+            <ol>
+              <li>Напишіть запит або задачу для агента в полі нижче.</li>
+              <li>Агент відповість у цьому чаті.</li>
+              <li>
+                Якщо для відповіді потрібна дія, агент зможе використати
+                підключені tools.
+              </li>
+              <li>
+                Активність агента і tools буде видно у панелі Live Tracking.
+              </li>
+              <li>
+                Для категорії “Інше” доступні базові tools: get_current_time,
+                search_web, save_note, http_request.
+              </li>
+            </ol>
+            <p>
+              Зараз це демонстраційний UI. Реальне виконання повідомлень і
+              підключення tools до backend пізніше з’єднає integration layer.
+            </p>
+            <button
+              className={styles.instructionClose}
+              type="button"
+              onClick={() => setIsInstructionVisible(false)}
+            >
+              Зрозуміло
+            </button>
+          </div>
+        ) : null}
         <AiDiverActionChips actions={actions ?? defaultActions} />
       </div>
     </aside>
