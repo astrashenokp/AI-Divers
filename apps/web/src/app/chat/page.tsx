@@ -1,3 +1,6 @@
+"use client";
+
+import { getToolCategory } from "@/app/tools/toolsData";
 import {
   AgentThinkingPanel,
   type ToolEventViewModel,
@@ -5,9 +8,133 @@ import {
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatLayout } from "@/components/chat/ChatLayout";
-import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { ChatMessageViewModel } from "@/components/chat/ChatMessageBubble";
+import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { AiDiverGuide } from "@/components/help/AiDiverGuide";
+import { useAgents } from "@/hooks/useAgents";
+import { useAgentExecutionStream } from "@/hooks/useAgentExecutionStream";
+import { useAgentSession } from "@/hooks/useAgentSession";
+import { LIVE_TRACKING_EVENTS } from "@/lib/constants";
+import type { ChatMessage, LiveTrackingEvent } from "@/lib/types";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import styles from "./page.module.scss";
+
+type ToolContext = {
+  categoryTitle: string;
+  domain: string;
+  toolName?: string;
+  instruction: string;
+};
+
+const toolInstructions: Record<string, string> = {
+  itinerary_plan: "Опишіть місто, тривалість, дати та стиль подорожі.",
+  hotel_search: "Напишіть місто, дати заїзду й виїзду та кількість гостей.",
+  get_weather: "Напишіть місто і період, для якого потрібен прогноз погоди.",
+  course_search: "Опишіть тему, навичку або рівень складності курсу.",
+  course_info:
+    "Напишіть назву або ідентифікатор курсу, про який потрібні деталі.",
+  save_progress: "Опишіть, який навчальний прогрес потрібно зберегти.",
+  product_search:
+    "Напишіть назву товару, категорію або ключові слова для пошуку.",
+  order_status:
+    "Напишіть номер замовлення або деталі, за якими його можна знайти.",
+  check_price:
+    "Напишіть назву або ідентифікатор товару, ціну якого потрібно перевірити.",
+  get_current_time:
+    "Напишіть часовий пояс або місто, для якого потрібно отримати поточний час.",
+  search_web:
+    "Опишіть, яку актуальну інформацію потрібно знайти в інтернеті.",
+  save_note:
+    "Напишіть нотатку або факт, який потрібно зберегти для поточної сесії.",
+  http_request:
+    "Опишіть публічний API, метод і дані запиту. Агент попросить підтвердження, якщо це потрібно.",
+};
+
+const getToolContext = (
+  domain?: string | null,
+  toolName?: string | null,
+): ToolContext | undefined => {
+  if (!domain) {
+    return undefined;
+  }
+
+  const category = getToolCategory(domain);
+
+  if (!category) {
+    return undefined;
+  }
+
+  const tool = toolName
+    ? category.tools.find((item) => item.name === toolName)
+    : undefined;
+
+  return {
+    categoryTitle: category.title,
+    domain: category.domain,
+    toolName: tool?.name,
+    instruction: tool
+      ? toolInstructions[tool.name] ??
+        "Опишіть задачу, і агент використає цей tool, якщо він потрібен."
+      : "Опишіть задачу, і агент використає доступні tools цієї категорії, якщо вони потрібні.",
+  };
+};
+
+const formatMessageTime = (createdAt: string) => {
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return createdAt;
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toMessageViewModel = (message: ChatMessage): ChatMessageViewModel => ({
+  id: message.id,
+  role:
+    message.role === "user" ||
+    message.role === "assistant" ||
+    message.role === "system"
+      ? message.role
+      : "assistant",
+  content: message.content,
+  createdAt: formatMessageTime(message.createdAt),
+});
+
+const toToolEventStatus = (
+  event: LiveTrackingEvent,
+): ToolEventViewModel["status"] => {
+  if (
+    event.type === LIVE_TRACKING_EVENTS.EXECUTION_FAILED ||
+    event.status === "failed" ||
+    event.status === "blocked"
+  ) {
+    return "error";
+  }
+
+  if (
+    event.type === LIVE_TRACKING_EVENTS.TOOL_CALL_FINISHED ||
+    event.type === LIVE_TRACKING_EVENTS.EXECUTION_COMPLETED ||
+    event.status === "completed"
+  ) {
+    return "success";
+  }
+
+  return "running";
+};
+
+const toToolEventViewModel = (
+  event: LiveTrackingEvent,
+  index: number,
+): ToolEventViewModel => ({
+  toolName: event.toolName ?? event.type,
+  status: toToolEventStatus(event),
+  output: event.summary || `Event ${index + 1}`,
+});
 
 const mockMessages: ChatMessageViewModel[] = [
   {
@@ -53,37 +180,200 @@ const mockToolEvents: ToolEventViewModel[] = [
     output: "Готую коротку нотатку з продуктовим висновком.",
   },
   {
-    toolName: "web_search",
+    toolName: "search_web",
     status: "error",
     output: "Недоступно в тестовому режимі.",
   },
 ];
 
-function ChatComposerArea() {
+function ToolContextBanner({ context }: { context?: ToolContext }) {
+  if (!context) {
+    return null;
+  }
+
+  return (
+    <section className={styles.toolContext} aria-label="Контекст обраного tool">
+      <div className={styles.toolContextMeta}>
+        <span>domain: {context.domain}</span>
+        {context.toolName ? <span>tool: {context.toolName}</span> : null}
+      </div>
+      <strong>
+        {context.toolName
+          ? `Обрано tool: ${context.toolName}`
+          : `Обрано категорію: ${context.categoryTitle}`}
+      </strong>
+      <p>{context.instruction}</p>
+    </section>
+  );
+}
+
+function ChatComposerArea({
+  draftMessage,
+  isSending,
+  isDisabled,
+  toolContext,
+  onDraftChange,
+  onSubmit,
+}: {
+  draftMessage: string;
+  isSending: boolean;
+  isDisabled: boolean;
+  toolContext?: ToolContext;
+  onDraftChange: (value: string) => void;
+  onSubmit: (value: string) => void;
+}) {
   return (
     <>
+      <ToolContextBanner context={toolContext} />
       <AiDiverGuide
         title="Перше занурення у Agentic Studio?"
         body="Я допоможу розібратися з чатом агента."
       />
-      <ChatComposer />
+      <ChatComposer
+        value={draftMessage}
+        disabled={isDisabled}
+        isSending={isSending}
+        onChange={onDraftChange}
+        onSubmit={onSubmit}
+      />
     </>
+  );
+}
+
+function ChatPageContent() {
+  const searchParams = useSearchParams();
+  const [draftMessage, setDraftMessage] = useState("");
+  const { selectedAgent, isLoading: isAgentsLoading, error: agentsError } =
+    useAgents();
+  const {
+    session,
+    startSession,
+    isLoading: isSessionLoading,
+    error: sessionError,
+  } = useAgentSession(selectedAgent?.id);
+  const {
+    messages,
+    executionEvents,
+    streamedMessage,
+    isStreaming,
+    isThinking,
+    error: executionError,
+    startExecution,
+  } = useAgentExecutionStream(selectedAgent?.id, session?.id);
+
+  const toolContext = useMemo(
+    () => getToolContext(searchParams.get("domain"), searchParams.get("tool")),
+    [searchParams],
+  );
+
+  const messagesViewModel = useMemo<ChatMessageViewModel[]>(() => {
+    const baseMessages =
+      messages.length > 0 ? messages.map(toMessageViewModel) : mockMessages;
+
+    const nextMessages = [...baseMessages];
+
+    if (isStreaming && streamedMessage) {
+      nextMessages.push({
+        id: "streaming-assistant-message",
+        role: "assistant",
+        content: streamedMessage,
+        createdAt: "now",
+        isStreaming: true,
+      });
+    }
+
+    const error = executionError ?? sessionError ?? agentsError;
+
+    if (error) {
+      nextMessages.push({
+        id: "integration-error-message",
+        role: "system",
+        content: error.message,
+        createdAt: "now",
+        isError: true,
+      });
+    }
+
+    return nextMessages;
+  }, [
+    agentsError,
+    executionError,
+    isStreaming,
+    messages,
+    sessionError,
+    streamedMessage,
+  ]);
+
+  const toolEvents = useMemo<ToolEventViewModel[]>(
+    () =>
+      executionEvents.length > 0
+        ? executionEvents.slice(-8).map(toToolEventViewModel)
+        : mockToolEvents,
+    [executionEvents],
+  );
+
+  const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
+  const isComposerDisabled = isBusy || !selectedAgent;
+
+  const handleSubmit = async (message: string) => {
+    if (!selectedAgent) {
+      return;
+    }
+
+    const activeSession =
+      session ?? (await startSession(`${selectedAgent.name} test chat`));
+    const metadata: Record<string, string> = {};
+    const domain = toolContext?.domain ?? selectedAgent.tools[0]?.category;
+
+    if (domain) {
+      metadata.domain = domain;
+    }
+
+    if (toolContext?.toolName) {
+      metadata.tool = toolContext.toolName;
+    }
+
+    setDraftMessage("");
+    await startExecution(message, {
+      sessionId: activeSession.id,
+      metadata,
+    });
+  };
+
+  return (
+    <ChatLayout
+      header={
+        <ChatHeader
+          title={selectedAgent?.name ?? "AI Divers Agent"}
+          subtitle="Тестовий чат із видимою активністю агента"
+          isStreaming={isStreaming || isAgentsLoading}
+        />
+      }
+      messages={<ChatMessageList messages={messagesViewModel} />}
+      activity={
+        <AgentThinkingPanel
+          isThinking={isThinking || executionEvents.length === 0}
+          toolEvents={toolEvents}
+        />
+      }
+      composer={
+        <ChatComposerArea
+          draftMessage={draftMessage}
+          isSending={isBusy}
+          isDisabled={isComposerDisabled}
+          toolContext={toolContext}
+          onDraftChange={setDraftMessage}
+          onSubmit={handleSubmit}
+        />
+      }
+    />
   );
 }
 
 export default function ChatPage() {
   return (
-    <ChatLayout
-      header={
-        <ChatHeader
-          title="AI Divers Agent"
-          subtitle="Тестовий чат із видимою активністю агента"
-          isStreaming
-        />
-      }
-      messages={<ChatMessageList messages={mockMessages} />}
-      activity={<AgentThinkingPanel isThinking toolEvents={mockToolEvents} />}
-      composer={<ChatComposerArea />}
-    />
+    <Suspense fallback={null}>
+      <ChatPageContent />
+    </Suspense>
   );
 }

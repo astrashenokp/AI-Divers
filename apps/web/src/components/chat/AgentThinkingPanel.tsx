@@ -47,11 +47,11 @@ export function AgentThinkingPanel({
       </div>
 
       <div className={styles.timeline}>
-        {toolEvents.map((event) => {
+        {toolEvents.map((event, index) => {
           const Icon = statusIcon[event.status];
 
           return (
-            <article className={styles.event} key={event.toolName}>
+            <article className={styles.event} key={`${event.toolName}-${index}`}>
               <span className={`${styles.eventIcon} ${styles[event.status]}`}>
                 <Icon size={16} aria-hidden />
               </span>
