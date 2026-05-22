@@ -23,7 +23,7 @@ public class SessionController {
                                              @Valid @RequestBody ChatSessionRequest request) {
         SessionSource source = request.getSource() == null ? SessionSource.STUDIO : request.getSource();
         String title = request.getTitle() == null || request.getTitle().isBlank()
-                ? "Studio chat"
+                ? "New chat"
                 : request.getTitle();
 
         ChatSession session = chatSessionService.create(agentId, source, title);
