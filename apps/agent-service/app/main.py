@@ -204,16 +204,10 @@ async def _stream_agent(
         "sessionId": request.sessionId,
     })
 
+    from agents.domains.graph import _current_event_queue
+
     event_queue: asyncio.Queue = asyncio.Queue()
-    import agents.domains.graph as _graph_module
-    _original_emit = _graph_module._emit_sse
-
-    def _patched_emit(event: str, data: dict):
-        _original_emit(event, data)
-        enriched = {"executionId": execution_id, **data}
-        event_queue.put_nowait((event, enriched))
-
-    _graph_module._emit_sse = _patched_emit
+    token = _current_event_queue.set(event_queue)
 
     try:
         initial_state: AgentState = {
@@ -233,15 +227,17 @@ async def _stream_agent(
 
         agent_task = asyncio.create_task(agent_graph.ainvoke(initial_state))
 
-        while not agent_task.done():
-            await asyncio.sleep(0)
+        while True:
+            done = agent_task.done()
             while not event_queue.empty():
                 event_name, event_data = event_queue.get_nowait()
                 yield _sse_event(event_name, event_data)
-
-        while not event_queue.empty():
-            event_name, event_data = event_queue.get_nowait()
-            yield _sse_event(event_name, event_data)
+            if done:
+                break
+            try:
+                await asyncio.wait_for(event_queue.get(), timeout=0.3)
+            except asyncio.TimeoutError:
+                pass
 
         result_state = agent_task.result()
 
@@ -269,7 +265,7 @@ async def _stream_agent(
             "error": str(exc),
         })
     finally:
-        _graph_module._emit_sse = _original_emit
+        _current_event_queue.reset(token)
 
 @app.post("/internal/v1/agent/stream")
 async def agent_stream(request: AgentStreamRequest):

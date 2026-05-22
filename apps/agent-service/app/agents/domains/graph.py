@@ -1,3 +1,5 @@
+import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -99,7 +101,7 @@ def _get_tools_for_domain(state: AgentState, domain: str, use_case: str | None =
     if state.get("tools") is not None:
         custom_tool_names = state["tools"]
         all_tools = get_available_tools()
-        filtered_tools = [t for t in all_tools if t.__name__ in custom_tool_names]
+        filtered_tools = [t for t in all_tools if t["name"] in custom_tool_names]
         return _to_openai_tools(filtered_tools)
         
     all_tools = get_available_tools(domain)
@@ -185,11 +187,21 @@ def _extract_last_assistant_text(messages: list) -> str:
     return ""
 
 
+# ── Per-request event queue (contextvars — safe for concurrent requests) ─────
+
+_current_event_queue: contextvars.ContextVar[asyncio.Queue | None] = (
+    contextvars.ContextVar("_current_event_queue", default=None)
+)
+
+
 # ── SSE helper ────────────────────────────────────────────────────────────────
 
 
 def _emit_sse(event: str, data: dict):
     logger.info("SSE | event=%s | data=%s", event, data)
+    queue = _current_event_queue.get()
+    if queue is not None:
+        queue.put_nowait((event, data))
 
 
 # ── Build OpenAI messages list from internal format ──────────────────────────
