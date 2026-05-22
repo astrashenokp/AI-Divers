@@ -297,6 +297,7 @@ async def reason_node(state: AgentState) -> dict:
 
     import os
     model_name = "gemini-2.5-flash" if os.getenv("GEMINI_API_KEY") else GROQ_MODEL
+    logger.info("DEBUG API MESSAGES: %s", api_messages)
     kwargs = {
         "model": model_name,
         "messages": api_messages,
@@ -430,9 +431,9 @@ async def tool_node(state: AgentState) -> dict:
         })
 
     if not tool_results:
-        return {"messages": []}
+        return {"messages": state["messages"]}
 
-    return {"messages": tool_results}
+    return {"messages": state["messages"] + tool_results}
 
 
 def guardrail_check(state: AgentState) -> Literal["continue", "finalize"]:
