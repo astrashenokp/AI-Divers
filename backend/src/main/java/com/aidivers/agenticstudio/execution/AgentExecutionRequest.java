@@ -1,18 +1,17 @@
 package com.aidivers.agenticstudio.execution;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @lombok.Data
 @lombok.Builder
 public class AgentExecutionRequest {
 
-    private UUID agentId;
-    private UUID sessionId;
-    private String userMessage;
-    private String systemPrompt;
-    private String modelProvider;
-    private String modelName;
+    private List<Map<String, String>> messages;
+    private String domain;
+    private String useCase;
+    private String executionId;
+    private int stepCount;
     private int maxSteps;
 }
-
-//узгодити, поки домисли
