@@ -366,9 +366,9 @@ async def tool_node(state: AgentState) -> dict:
         })
 
     if not tool_results:
-        return {"messages": []}
+        return {"messages": state["messages"]}
 
-    return {"messages": tool_results}
+    return {"messages": state["messages"] + tool_results}
 
 
 def guardrail_check(state: AgentState) -> Literal["continue", "finalize"]:
