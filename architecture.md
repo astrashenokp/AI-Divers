@@ -50,6 +50,19 @@ Each domain gets:
 - its own domain prompt
 - its own step ceiling
 - shared runtime rules
+LLM provider integration is owned by the AI runtime team:
+
+- the Python agent-service reads `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY`
+- the Python agent-service calls the external LLM provider such as Claude API
+- the Python agent-service owns prompt formatting, model adapter logic, native tool-use integration, and LLM response parsing
+- the Spring Boot backend must not call Claude/OpenAI directly for normal agent execution
+- the Next.js frontend must never receive or store `LLM_API_KEY`
+
+Current agent runtime files:
+
+- `apps/agent-service/app` contains the Python tool layer and should become the LangGraph agent runtime.
+- New agent orchestration code should be added in Python under `apps/agent-service/app/agents/`.
+- Alina and Sofia should not be assigned Spring Boot implementation tasks.
 
 ---
 
@@ -371,6 +384,194 @@ Current endpoints:
 - `POST /execute-tool`
 
 ### 2. Service layer
+---
+
+## Frontend, Backend, and AI Runtime Connection Contract
+
+This section defines how Rinata/Polina frontend work connects to Stas API/Stas Data backend work and Alina/Sofia AI runtime work.
+
+Core rule:
+
+- the frontend never calls `apps/agent-service` directly
+- the frontend calls only Spring Boot routes under `/api/v1`
+- Spring Boot owns persistence, validation, public API routes, and SSE relay
+- Python agent-service owns agent reasoning, tool execution, and internal event generation
+- Python agent-service owns external LLM provider calls and uses `LLM_API_KEY`
+- Spring Boot does not call Claude/OpenAI directly in the MVP agent execution path
+- the frontend never receives `LLM_API_KEY` and never calls any LLM provider directly
+- Spring Boot sends agent configuration and attached tools to Python through `POST /internal/v1/agent/stream`
+- Python streams structured events back to Spring Boot
+- Spring Boot persists those events and relays frontend-safe events to the browser
+
+End-to-end flow:
+
+1. Frontend loads available tool categories and templates from `GET /api/v1/tool-types`.
+2. User selects tools on the frontend and configures an agent.
+3. Frontend saves the agent through `POST /api/v1/agents` or `PUT /api/v1/agents/{agentId}`.
+4. Frontend attaches selected tools through `POST /api/v1/agents/{agentId}/tools`.
+5. Backend validates and persists the selected tools in `agent_tools`.
+6. User sends a test message in the chat.
+7. Frontend opens execution through `POST /api/v1/agents/{agentId}/execute/stream`.
+8. Backend loads the agent, tools, guardrails, session, and previous messages.
+9. Backend calls Python `POST /internal/v1/agent/stream` with the full agent execution context.
+10. Python uses its configured LLM provider adapter to call Claude or another LLM.
+11. Python runs the LangGraph loop and executes tools through Sofia's tool execution layer.
+12. Python emits internal execution events to Spring Boot.
+13. Spring Boot persists execution, steps, and tool call history.
+14. Spring Boot streams frontend-safe SSE events to the browser.
+15. Frontend renders the final answer in chat and renders execution steps in Live Tracking.
+
+Frontend must treat tools as configuration, not as directly callable browser functions.
+
+Frontend may show:
+
+- tool category cards
+- tool template cards
+- enabled/disabled state
+- simple public config fields
+- Live Tracking tool call status
+
+Frontend must not:
+
+- execute `web_search`, `http_request`, or `database_query` directly from the browser
+- send API keys or database credentials to the browser
+- send `LLM_API_KEY` or any LLM provider secret to the browser
+- call Claude, OpenAI, or another LLM provider directly
+- call `http://localhost:8001` or any Python agent-service route
+- invent tool results when streaming data is not available
+
+Backend must expose tool templates in a frontend-friendly shape:
+
+```json
+{
+  "categories": [
+    {
+      "id": "education",
+      "label": "Освіта",
+      "description": "Tools for learning assistants, course search, tutoring, and knowledge lookup",
+      "tools": [
+        {
+          "type": "web_search",
+          "name": "Education Web Search",
+          "description": "Searches public learning resources",
+          "requiresHumanConfirmation": false,
+          "configSchema": {
+            "allowedDomains": "string[]"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tourism",
+      "label": "Туризм",
+      "description": "Tools for travel research, destinations, routes, and recommendations",
+      "tools": []
+    },
+    {
+      "id": "ecommerce",
+      "label": "E-commerce (Продажі)",
+      "description": "Tools for product lookup, order status, sales workflows, and customer requests",
+      "tools": []
+    },
+    {
+      "id": "other",
+      "label": "Інше",
+      "description": "General tools for tasks that do not fit the main categories yet",
+      "tools": []
+    }
+  ]
+}
+```
+
+Frontend attaches a tool to an agent through Spring Boot:
+
+```json
+{
+  "type": "web_search",
+  "name": "Education Web Search",
+  "category": "education",
+  "enabled": true,
+  "config": {
+    "allowedDomains": ["wikipedia.org", "coursera.org"]
+  }
+}
+```
+
+Backend stores this in `agent_tools` and sends only validated, redacted config to Python.
+
+Internal Spring Boot -> Python execution request:
+
+```json
+{
+  "agent": {
+    "id": "agent-123",
+    "name": "Education Assistant",
+    "systemPrompt": "You help students understand topics clearly.",
+    "modelProvider": "anthropic",
+    "modelName": "claude-3-5-haiku-latest"
+  },
+  "guardrails": {
+    "maxSteps": 6,
+    "forbiddenTopics": [],
+    "requireHumanConfirmationForTools": ["database_query"]
+  },
+  "tools": [
+    {
+      "id": "agent-tool-1",
+      "type": "web_search",
+      "name": "Education Web Search",
+      "config": {
+        "allowedDomains": ["wikipedia.org", "coursera.org"]
+      }
+    }
+  ],
+  "session": {
+    "id": "session-123",
+    "source": "STUDIO"
+  },
+  "message": {
+    "role": "user",
+    "content": "Поясни, що таке LangGraph"
+  }
+}
+```
+
+Python agent-service must emit events using the shared SSE event names. Event payloads must be structured and frontend-safe:
+
+```json
+{
+  "event": "tool_call_started",
+  "executionId": "execution-123",
+  "stepIndex": 2,
+  "toolName": "web_search",
+  "summary": "Searching public learning resources",
+  "status": "RUNNING",
+  "timestamp": "2026-05-22T12:00:00Z"
+}
+```
+
+Frontend rendering contract:
+
+- `message_delta` updates the assistant message in chat
+- `execution_completed` finalizes the assistant message
+- `reasoning_step`, `tool_call_started`, `tool_call_finished`, `guardrail_blocked`, `human_confirmation_required`, and `execution_failed` update Live Tracking
+- frontend displays `summary`, `stepIndex`, `toolName`, `status`, and `timestamp`
+- frontend may show expandable JSON only when backend marks it frontend-safe
+
+Ownership:
+
+- Rinata owns how categories, tool cards, chat, and Live Tracking look
+- Polina owns API client functions and SSE state handling
+- Stas API owns `/api/v1/tool-types`, agent tool attach routes, and SSE relay
+- Stas Data owns persisted `agent_tools`, executions, steps, and tool call history
+- Stas API owns `AGENT_SERVICE_URL` usage and the Spring Boot client that calls Python
+- Stas API must not require `LLM_API_KEY` for the normal MVP execution flow
+- Sofia owns Python tool schema validation and safe tool execution
+- Alina owns when the agent decides to use an attached tool
+- Alina owns Python LLM provider integration and model adapter behavior
+- Sofia coordinates with Alina so Python tool schemas are compatible with native LLM tool use
+
+Example create agent request:
 
 File:
 
@@ -402,7 +603,22 @@ Current ToolResult shape:
 
 Folder:
 
-- `apps/agent-service/app/tools/`
+- `RUNNING`
+- `COMPLETED`
+- `FAILED`
+- `BLOCKED`
+- `WAITING_FOR_HUMAN`
+
+---
+
+## Frontend Architecture
+
+Current frontend:
+
+- `/` explains what Agentic Studio is and links to the main product areas.
+- `/tools` shows the basic frontend tool categories: `Освіта`, `Туризм`, `E-commerce (Продажі)`, `Інше`.
+- `/chat` is a test chat with visible tool activity.
+- chat components already exist and should be reused.
 
 Current purpose:
 
@@ -414,7 +630,294 @@ Current purpose:
 
 ---
 
-## Runtime Safety Model
+## AI Diver Guide
+
+### Purpose
+
+Agentic Studio includes an interactive in-product helper called **AI Diver Guide**.
+
+The guide is represented by a small robot diver mascot wearing a swimming mask and snorkel. The mascot supports the product metaphor: users are "diving" into agent creation, tool configuration, Live Tracking, and deployment.
+
+The goal of AI Diver Guide is to make the product easier for first-time users and safer during presentations. Agentic Studio has several advanced concepts such as prompts, tools, guardrails, Live Tracking, sessions, and deployments. The guide helps users understand what to do next and recover when something goes wrong.
+
+AI Diver Guide is not part of the core agent execution engine. It is a frontend product assistant and onboarding layer.
+
+### User Experience
+
+On the user's first visit, AI Diver Guide appears near the main input, composer, or primary action area and asks:
+
+```text
+First dive? I can help you create your first agent or fix a problem.
+```
+
+The guide should provide action buttons such as:
+
+- `Create first agent`
+- `Explain this screen`
+- `I have a problem`
+- `Hide`
+
+The guide must be dismissible. After dismissal, it should collapse into a small helper icon and should not block the main workflow.
+
+The guide may reappear automatically only for important events such as backend connection failure, stream failure, guardrail blocking, or deployment configuration problems.
+
+### Interaction Modes
+
+AI Diver Guide supports four interaction modes.
+
+#### 1. First-Time Onboarding
+
+The guide helps a new user complete the first successful agent setup:
+
+1. choose an agent template
+2. edit the system prompt
+3. enable at least one tool
+4. configure a simple guardrail such as `maxSteps`
+5. run a test message
+6. view Live Tracking events
+7. copy or preview a deployment option
+
+This mode supports the product requirement that a user should be able to create and test an agent quickly.
+
+#### 2. Contextual Help
+
+The guide shows screen-specific help based on the current product area:
+
+- Agent Builder: explains agent name, description, and system prompt
+- Tool Configuration: explains what tools allow the agent to do
+- Guardrails: explains max steps, forbidden topics, and human confirmation
+- Test Chat: explains how to run an agent task
+- Live Tracking: explains reasoning steps, tool calls, observations, and final answer events
+- Deployments: explains REST API, webhook, and widget options
+
+#### 3. Troubleshooting
+
+The guide can react to frontend-visible problems:
+
+- backend is unreachable
+- healthcheck fails
+- SSE stream fails
+- malformed stream event is received
+- no agent is selected
+- agent prompt is empty
+- no tools are enabled
+- guardrail blocks execution
+- human confirmation is required
+- deployment slug or widget configuration is missing
+
+For example, when the backend is unreachable, the guide may show:
+
+```text
+I cannot reach the backend. You can check the health endpoint or continue in mock mode.
+```
+
+Possible actions:
+
+- `Check backend health`
+- `Retry`
+- `Run mock mode`
+- `Show debug info`
+
+#### 4. Demo Mode
+
+The guide may include a demo-safe path that helps the team show the product in a predictable order:
+
+1. create a starter agent
+2. enable one tool
+3. set `maxSteps`
+4. run a test task
+5. show Live Tracking
+6. copy widget code
+7. open the external widget preview
+
+This mode is optional but useful for presenting the product reliably.
+
+### MVP Implementation Strategy
+
+For the MVP, AI Diver Guide should be implemented as a frontend rule-based assistant.
+
+It should not require an LLM or backend endpoint in the first version. This keeps the feature reliable and prevents it from blocking the core agent execution work.
+
+The guide can decide what to show based on:
+
+- current route
+- whether this is the user's first visit
+- selected agent state
+- builder completion state
+- API health state
+- stream state
+- latest execution error
+- latest Live Tracking event
+- deployment configuration state
+
+A future version may connect AI Diver Guide to a backend help endpoint, but this is not required for the first version.
+
+### Frontend Ownership
+
+Rinata owns the visual presentation of the guide:
+
+- mascot design
+- popover/bubble UI
+- animations
+- positioning near the composer or primary action area
+- responsive behavior
+- Sass styling
+
+Suggested UI files:
+
+```text
+apps/web/src/components/help/AiDiverGuide.tsx
+apps/web/src/components/help/AiDiverMascot.tsx
+apps/web/src/components/help/AiDiverBubble.tsx
+apps/web/src/components/help/AiDiverActionChips.tsx
+apps/web/src/components/help/AiDiverGuide.module.scss
+```
+
+Polina owns the guide's client-side logic and integration state:
+
+- guide triggers
+- guide rules
+- localStorage persistence
+- API health integration
+- stream error integration
+- action callbacks for mock mode, retry, and guided setup
+
+Suggested integration files:
+
+```text
+apps/web/src/lib/guideTypes.ts
+apps/web/src/lib/guideRules.ts
+apps/web/src/hooks/useAiDiverGuide.ts
+apps/web/src/store/guideStore.ts
+```
+
+### Suggested TypeScript Model
+
+```ts
+export type GuideTrigger =
+  | "first_visit"
+  | "builder_empty"
+  | "agent_missing_prompt"
+  | "no_tools_selected"
+  | "backend_unreachable"
+  | "stream_failed"
+  | "guardrail_blocked"
+  | "human_confirmation_required"
+  | "deployment_not_configured"
+  | "demo_mode";
+
+export type GuideActionType =
+  | "start_guided_setup"
+  | "explain_screen"
+  | "insert_template"
+  | "add_default_tool"
+  | "set_safe_guardrails"
+  | "check_backend_health"
+  | "retry_stream"
+  | "run_mock_mode"
+  | "open_widget_preview"
+  | "dismiss";
+
+export type GuideAction = {
+  id: string;
+  label: string;
+  type: GuideActionType;
+};
+
+export type GuideMessage = {
+  id: string;
+  trigger: GuideTrigger;
+  title: string;
+  body: string;
+  actions: GuideAction[];
+};
+
+export type GuideContext = {
+  route: string;
+  isFirstVisit: boolean;
+  hasSelectedAgent: boolean;
+  hasSystemPrompt: boolean;
+  enabledToolCount: number;
+  backendReachable: boolean | null;
+  isStreaming: boolean;
+  latestExecutionStatus?:
+    | "RUNNING"
+    | "COMPLETED"
+    | "FAILED"
+    | "BLOCKED"
+    | "WAITING_FOR_HUMAN";
+  deploymentConfigured: boolean;
+};
+```
+
+### Behavior Rules
+
+Minimum guide behavior:
+
+- show first-visit onboarding once
+- store dismissal state in `localStorage`
+- collapse into a small icon after dismissal
+- reappear for critical errors
+- never block the main workflow
+- never display secrets, API keys, database credentials, or private tool configs
+- provide short, actionable messages
+- keep advanced explanations behind action buttons
+
+### Example Messages
+
+First visit:
+
+```text
+First dive? I can help you create your first agent or fix a problem.
+```
+
+Agent builder empty:
+
+```text
+Start by choosing a template or writing a clear role for your agent.
+```
+
+No tools enabled:
+
+```text
+Your agent can answer, but it cannot act yet. Add a tool to show real agent behavior.
+```
+
+Stream failure:
+
+```text
+The live stream stopped unexpectedly. You can retry or switch to mock mode.
+```
+
+Guardrail blocked:
+
+```text
+A guardrail stopped this execution. Check the blocked topic or reduce the request risk.
+```
+
+Deployment not configured:
+
+```text
+Your agent works in the studio. Enable a widget or API deployment to use it outside.
+```
+
+### Future Extension
+
+In a future version, AI Diver Guide may become an AI-powered assistant that uses the current product context to generate personalized help.
+
+Possible backend route:
+
+```text
+POST /api/v1/help/guide
+```
+
+However, this route is not required for the MVP. The first version should stay frontend-only and rule-based for reliability.
+
+---
+
+## Docker and Local Development
+
+Docker is used to make local development predictable for all team members.
 
 Guardrails are enforced in code, not in prompts.
 
@@ -448,6 +951,19 @@ Tools currently marked as requiring human confirmation:
 ---
 
 ## Product Requirements Mapping
+## Environment Variables
+
+Backend `.env.example` target:
+
+```env
+SERVER_PORT=8080
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/agentic_studio
+SPRING_DATASOURCE_USERNAME=agentic
+SPRING_DATASOURCE_PASSWORD=agentic
+AGENT_SERVICE_URL=http://localhost:8001
+FRONTEND_URL=http://localhost:3000
+APP_ENV=development
+```
 
 ### 1. Visual Constructor
 
@@ -457,6 +973,14 @@ Current status:
 - tool metadata API exists
 - domain list API exists
 - builder UI is still frontend work
+LLM environment ownership:
+
+- `LLM_PROVIDER`, `LLM_MODEL_NAME`, and `LLM_API_KEY` belong to `apps/agent-service`
+- Spring Boot uses `AGENT_SERVICE_URL` to call Python and does not need the LLM key in the MVP path
+- Next.js must never define `NEXT_PUBLIC_LLM_API_KEY` or any other public LLM secret
+- for local demos, use a low-cost model such as a Claude Haiku model and keep mock mode available when credits are unavailable
+
+Frontend `.env.local.example` target:
 
 ### 2. Autonomous Execution Engine
 
@@ -537,3 +1061,11 @@ This is the intended split:
 - `apps/agent-service` = Python runtime
 - `apps/backend` = Spring Boot orchestration API
 - `apps/web` = frontend builder and demo UI
+- Next.js frontend in `apps/web`
+- Spring Boot backend in `apps/backend`
+- Python/LangGraph agent runtime in `apps/agent-service`
+- PostgreSQL persistence
+- SSE Live Tracking
+- autonomous execution loop
+- configurable tools and guardrails
+- deployable agents through REST API, webhook, or widget
