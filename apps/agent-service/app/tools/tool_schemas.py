@@ -51,6 +51,58 @@ class HttpRequestInput(BaseModel):
     )
 
 
+class WebsiteAnalyzerInput(BaseModel):
+    url: str = Field(
+        ...,
+        description=(
+            "Public website URL to analyze. "
+            "Example: 'https://example.com' or 'https://company.com/about'"
+        ),
+    )
+    include_headings: bool = Field(
+        default=True,
+        description="Whether to extract page headings such as h1, h2, and h3.",
+    )
+    include_links: bool = Field(
+        default=True,
+        description="Whether to extract a short list of public links found on the page.",
+    )
+    max_paragraphs: int = Field(
+        default=5, ge=1, le=10,
+        description="Maximum number of key paragraphs to include. Default 5.",
+    )
+    max_links: int = Field(
+        default=8, ge=1, le=20,
+        description="Maximum number of links to include. Default 8.",
+    )
+    timeout_seconds: float = Field(
+        default=15.0, ge=1.0, le=30.0,
+        description="Request timeout in seconds. Min 1, max 30. Default 15.",
+    )
+
+
+class DatabaseQueryInput(BaseModel):
+    query_name: str = Field(
+        ...,
+        description=(
+            "Approved read-only query template name. "
+            "Example: 'get_order_by_id' or 'get_user_progress'."
+        ),
+    )
+    params: dict = Field(
+        default_factory=dict,
+        description="Parameter values for the approved query template.",
+    )
+    connection_id: str = Field(
+        default="default",
+        description="Logical connection identifier. Raw database URLs are not allowed.",
+    )
+    max_rows: int = Field(
+        default=10, ge=1, le=20,
+        description="Maximum number of rows to return. Min 1, max 20. Default 10.",
+    )
+
+
 # ===========================================================================
 # ECOMMERCE SCHEMAS
 # ===========================================================================

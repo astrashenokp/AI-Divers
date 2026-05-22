@@ -4,9 +4,9 @@ from typing import Literal
 
 from pydantic import ValidationError
 
-from tools.tool_registry import get_tool_registry
-from tools.http_request_tool import ToolGuardrailError
-from tools.tool_guardrails import (
+from app.tools.tool_registry import get_tool_registry
+from app.tools.http_request_tool import ToolGuardrailError
+from app.tools.tool_guardrails import (
     check_tool_allowed_in_domain,
     check_step_limit,
     sanitize_args,

@@ -7,7 +7,7 @@ These guardrails run BEFORE tool execution. They are enforced by code, not by pr
 ToolGuardrailError is caught by tool_execution_service → status="error", error_type="blocked"
 """
 
-from tools.http_request_tool import ToolGuardrailError
+from .http_request_tool import ToolGuardrailError
 
 # ---------------------------------------------------------------------------
 # Domain tool allowlists — what each domain can call
@@ -18,25 +18,25 @@ from tools.http_request_tool import ToolGuardrailError
 DOMAIN_TOOL_ALLOWLIST: dict[str, frozenset[str]] = {
     "ecommerce": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "website_analyzer", "database_query",
         # domain
         "product_search", "order_status", "check_price",
     }),
     "education": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "website_analyzer", "database_query",
         # domain
         "course_search", "course_info", "save_progress",
     }),
     "tourism": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "website_analyzer", "database_query",
         # domain
         "hotel_search", "itinerary_plan", "get_weather",
     }),
     "general": frozenset({
         # shared only — no domain tools
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "website_analyzer", "database_query",
     }),
 }
 
@@ -47,6 +47,7 @@ DOMAIN_TOOL_ALLOWLIST: dict[str, frozenset[str]] = {
 
 REQUIRES_HUMAN_CONFIRMATION: frozenset[str] = frozenset({
     "http_request",      # external API calls — can have side effects
+    "database_query",    # internal data access should be explicitly approved
     "save_progress",     # writes user data
     "save_note",         # writes session data
 })

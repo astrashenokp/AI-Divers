@@ -17,8 +17,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from tools.tool_registry import get_available_tools
-from tools.tool_guardrails import (
+from app.tools.industry_presets import get_industry_presets
+from app.tools.tool_registry import get_available_tools
+from app.tools.tool_guardrails import (
     VALID_DOMAINS,
     DOMAIN_MAX_STEPS,
     DOMAIN_TOOL_ALLOWLIST,
@@ -26,7 +27,7 @@ from tools.tool_guardrails import (
     DEFAULT_MAX_STEPS,
     DEFAULT_TIMEOUT_SECONDS,
 )
-from services.tool_execution_service import execute_tool_call
+from app.services.tool_execution_service import execute_tool_call
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,6 +78,23 @@ async def list_domains():
             {"id": d, "label": domain_labels.get(d, d)}
             for d in sorted(VALID_DOMAINS)
         ]
+    }
+
+
+# ---------------------------------------------------------------------------
+# Industry presets
+# ---------------------------------------------------------------------------
+
+@app.get("/industry-presets")
+async def list_industry_presets():
+    """
+    Returns builder-ready industry presets aligned with runtime configuration.
+    Frontend can use this for onboarding and default agent setup.
+    """
+    presets = get_industry_presets()
+    return {
+        "count": len(presets),
+        "presets": presets,
     }
 
 

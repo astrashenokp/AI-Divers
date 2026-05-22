@@ -5,6 +5,8 @@ from .current_time_tool import get_current_time_tool, execute_get_current_time
 from .web_search_tool import search_web_tool, execute_search_web
 from .save_note_tool import save_note_tool, execute_save_note
 from .http_request_tool import http_request_tool, execute_http_request
+from .website_analyzer_tool import website_analyzer_tool, execute_website_analyzer
+from .database_query_tool import database_query_tool, execute_database_query
 
 # Ecommerce domain tools
 from .ecommerce.product_search_tool import product_search_tool, execute_product_search
@@ -30,6 +32,8 @@ _SHARED_REGISTRY: dict[str, Callable] = {
     "search_web":       execute_search_web,
     "save_note":        execute_save_note,
     "http_request":     execute_http_request,
+    "website_analyzer": execute_website_analyzer,
+    "database_query":   execute_database_query,
 }
 
 _SHARED_TOOLS: list[dict] = [
@@ -37,6 +41,8 @@ _SHARED_TOOLS: list[dict] = [
     search_web_tool(),
     save_note_tool(),
     http_request_tool(),
+    website_analyzer_tool(),
+    database_query_tool(),
 ]
 
 # ---------------------------------------------------------------------------
