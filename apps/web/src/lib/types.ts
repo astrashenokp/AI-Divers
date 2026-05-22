@@ -12,6 +12,8 @@ export type AgentStatus = "draft" | "active" | "archived";
 
 export type ToolTypeKey = "web_search" | "http_request" | "database_query";
 
+export type ToolCategoryId = "education" | "stores" | "tourism" | "finance";
+
 export type ToolRunStatus = "idle" | "running" | "completed" | "failed";
 
 export type ExecutionStatus =
@@ -60,6 +62,7 @@ export interface AgentTool {
   id: string;
   agentId?: string;
   type: ToolTypeKey | string;
+  category?: ToolCategoryId | string;
   name: string;
   enabled: boolean;
   config: JsonObject;
@@ -69,10 +72,32 @@ export interface AgentTool {
 
 export interface ToolType {
   type: ToolTypeKey | string;
+  category?: ToolCategoryId | string;
   displayName: string;
   description: string;
   configSchema?: JsonObject;
   requiresSecret?: boolean;
+}
+
+export interface ToolTemplate {
+  type: ToolTypeKey | string;
+  name: string;
+  description: string;
+  category?: ToolCategoryId | string;
+  requiresHumanConfirmation: boolean;
+  configSchema?: JsonObject;
+  requiresSecret?: boolean;
+}
+
+export interface ToolCategory {
+  id: ToolCategoryId | string;
+  label: string;
+  description: string;
+  tools: ToolTemplate[];
+}
+
+export interface ToolTypesResponse {
+  categories: ToolCategory[];
 }
 
 export interface GuardrailConfig {
