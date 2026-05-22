@@ -66,8 +66,8 @@ DOMAIN_CONFIG = {
 
 
 def _get_openai_client():
-    from openai import OpenAI
-    return OpenAI(
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY,
     )
@@ -294,11 +294,11 @@ async def reason_node(state: AgentState) -> dict:
         kwargs["tools"] = tools
 
     # ── Call Groq with retry on rate-limit (429) ──────────────────────────
-    import time, re as _re
+    import asyncio, re as _re
     _max_retries = 3
     for _attempt in range(_max_retries):
         try:
-            response = client.chat.completions.create(**kwargs)
+            response = await client.chat.completions.create(**kwargs)
             break
         except Exception as _exc:
             _msg = str(_exc)
@@ -312,7 +312,7 @@ async def reason_node(state: AgentState) -> dict:
                     "Rate limit hit (attempt %d/%d) — waiting %.1fs | exec=%s",
                     _attempt + 1, _max_retries, _wait, state["execution_id"],
                 )
-                time.sleep(_wait)
+                await asyncio.sleep(_wait)
             else:
                 raise
     msg = response.choices[0].message

@@ -20,48 +20,51 @@ VALID_DOMAINS = {"ecommerce", "education", "tourism", "general"}
 
 
 def _get_openai_client():
-    from openai import OpenAI
-    return OpenAI(
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY,
     )
 
 
-def router_node(state: AgentState) -> dict:
+async def router_node(state: AgentState) -> dict:
     if state.get("domain"):
         logger.info("Domain from frontend: %s", state["domain"])
         return {"domain": state["domain"]}
 
-    domain = _classify_with_llm(state["messages"])
+    domain = await _classify_with_llm(state["messages"])
     logger.info("Classified domain: %s", domain)
     return {"domain": domain}
 
 
-def _classify_with_llm(messages: list) -> str:
+async def _classify_with_llm(messages: list) -> str:
     if GROQ_API_KEY:
         try:
-            return _classify_with_groq(messages)
+            return await _classify_with_groq(messages)
         except Exception as e:
             logger.warning("LLM classification failed: %s, using fallback", e)
 
     return _classify_fallback(messages)
 
 
-def _classify_with_groq(messages: list) -> str:
+async def _classify_with_groq(messages: list) -> str:
     client = _get_openai_client()
-    last_text = _get_last_text(messages)
+    text = _get_last_text(messages) or "hello"
 
-    response = client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[
-            {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
-            {"role": "user", "content": last_text or "hello"},
-        ],
-        max_tokens=10,
-    )
-
-    domain = response.choices[0].message.content.strip().lower()
-    return domain if domain in VALID_DOMAINS else "general"
+    try:
+        response = await client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            temperature=0.0,
+            max_tokens=10,
+        )
+        domain = response.choices[0].message.content.strip().lower()
+        return domain if domain in VALID_DOMAINS else "general"
+    finally:
+        await client.close()
 
 
 def _classify_fallback(messages: list) -> str:
