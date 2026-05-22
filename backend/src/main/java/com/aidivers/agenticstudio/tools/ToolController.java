@@ -9,11 +9,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -24,13 +22,152 @@ public class ToolController {
     private final ObjectMapper objectMapper;
 
     @GetMapping("/tool-types")
-    public List<ToolTypeResponse> getToolTypes() {
-        return Arrays.stream(ToolType.values())
-                .map(type -> ToolTypeResponse.builder()
-                        .type(type.name())
-                        .name(type.name)
-                        .build())
-                .collect(Collectors.toList());
+    public ToolTypesResponse getToolTypes() {
+        return ToolTypesResponse.builder()
+                .categories(List.of(
+                        category(
+                                "education",
+                                "Освіта",
+                                "Tools for learning assistants, course search, tutoring, and knowledge lookup.",
+                                List.of(
+                                        tool(
+                                                ToolType.COURSE_SEARCH,
+                                                "Шукає навчальні курси за темою або навичкою.",
+                                                "education",
+                                                Map.<String, Object>of(
+                                                        "query", "string",
+                                                        "level", "string",
+                                                        "max_results", "integer"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.COURSE_INFO,
+                                                "Повертає детальну інформацію про конкретний курс.",
+                                                "education",
+                                                Map.<String, Object>of("course_id", "string")
+                                        ),
+                                        tool(
+                                                ToolType.SAVE_PROGRESS,
+                                                "Зберігає прогрес студента по уроку.",
+                                                "education",
+                                                Map.<String, Object>of(
+                                                        "user_id", "string",
+                                                        "course_id", "string",
+                                                        "lesson_id", "string"
+                                                )
+                                        )
+                                )
+                        ),
+                        category(
+                                "tourism",
+                                "Туризм",
+                                "Tools for travel research, destinations, routes, and recommendations.",
+                                List.of(
+                                        tool(
+                                                ToolType.HOTEL_SEARCH,
+                                                "Шукає готелі в місті за датами заїзду та виїзду.",
+                                                "tourism",
+                                                Map.<String, Object>of(
+                                                        "city", "string",
+                                                        "check_in", "string",
+                                                        "check_out", "string",
+                                                        "guests", "integer"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.ITINERARY_PLAN,
+                                                "Складає детальний план подорожі по місту або країні.",
+                                                "tourism",
+                                                Map.<String, Object>of(
+                                                        "destination", "string",
+                                                        "days", "integer",
+                                                        "interests", "string"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.GET_WEATHER,
+                                                "Повертає прогноз погоди для міста на кілька днів.",
+                                                "tourism",
+                                                Map.<String, Object>of(
+                                                        "city", "string",
+                                                        "days", "integer"
+                                                )
+                                        )
+                                )
+                        ),
+                        category(
+                                "ecommerce",
+                                "E-commerce (Продажі)",
+                                "Tools for product lookup, order status, sales workflows, and customer requests.",
+                                List.of(
+                                        tool(
+                                                ToolType.PRODUCT_SEARCH,
+                                                "Шукає товари за назвою або категорією.",
+                                                "ecommerce",
+                                                Map.<String, Object>of(
+                                                        "query", "string",
+                                                        "category", "string",
+                                                        "max_results", "integer"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.ORDER_STATUS,
+                                                "Перевіряє статус і трекінг замовлення.",
+                                                "ecommerce",
+                                                Map.<String, Object>of("order_id", "string")
+                                        ),
+                                        tool(
+                                                ToolType.CHECK_PRICE,
+                                                "Повертає ціну і наявність конкретного товару.",
+                                                "ecommerce",
+                                                Map.<String, Object>of("product_id", "string")
+                                        )
+                                )
+                        ),
+                        category(
+                                "other",
+                                "Інше",
+                                "General tools for tasks that do not fit the main categories yet.",
+                                List.of(
+                                        tool(
+                                                ToolType.GET_CURRENT_TIME,
+                                                "Повертає поточну дату і час.",
+                                                "other",
+                                                Map.<String, Object>of("timezone", "string")
+                                        ),
+                                        tool(
+                                                ToolType.WEB_SEARCH,
+                                                "Шукає актуальну інформацію в інтернеті.",
+                                                "other",
+                                                Map.<String, Object>of(
+                                                        "query", "string",
+                                                        "max_results", "integer"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.SAVE_NOTE,
+                                                "Зберігає нотатку для поточної сесії.",
+                                                "other",
+                                                Map.<String, Object>of(
+                                                        "session_id", "string",
+                                                        "content", "string"
+                                                )
+                                        ),
+                                        tool(
+                                                ToolType.HTTP_REQUEST,
+                                                "Виконує HTTP запит до зовнішнього API.",
+                                                "other",
+                                                Map.<String, Object>of(
+                                                        "url", "string",
+                                                        "method", "string",
+                                                        "headers", "object",
+                                                        "body", "string"
+                                                )
+                                        )
+                                )
+                        )
+                ))
+                .build();
     }
 
     @PostMapping("/agents/{agentId}/tools")
@@ -39,7 +176,7 @@ public class ToolController {
                                      @Valid @RequestBody AgentToolRequest request) {
         try {
             AgentTool tool = new AgentTool();
-            tool.setType(ToolType.valueOf(request.getType().toUpperCase()));
+            tool.setType(ToolType.fromId(request.getType()));
             tool.setName(request.getName());
             tool.setEnabled(request.isEnabled());
 
@@ -61,7 +198,7 @@ public class ToolController {
             return AgentToolResponse.builder()
                     .id(savedTool.getId())
                     .agentId(savedTool.getAgent().getId())
-                    .type(savedTool.getType().name())
+                    .type(savedTool.getType().getId())
                     .name(savedTool.getName())
                     .configJson(responseConfig)
                     .enabled(savedTool.isEnabled())
@@ -73,5 +210,31 @@ public class ToolController {
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Помилка формату configJson. Очікується валідний JSON.");
         }
+    }
+
+    private ToolCategoryResponse category(String id, String label, String description, List<ToolTemplateResponse> tools) {
+        return ToolCategoryResponse.builder()
+                .id(id)
+                .label(label)
+                .description(description)
+                .tools(tools)
+                .build();
+    }
+
+    private ToolTemplateResponse tool(ToolType type, String description, String category, Map<String, Object> configSchema) {
+        return ToolTemplateResponse.builder()
+                .type(type.getId())
+                .name(type.name)
+                .description(description)
+                .category(category)
+                .requiresHumanConfirmation(requiresHumanConfirmation(type))
+                .configSchema(configSchema)
+                .build();
+    }
+
+    private boolean requiresHumanConfirmation(ToolType type) {
+        return type == ToolType.HTTP_REQUEST
+                || type == ToolType.SAVE_PROGRESS
+                || type == ToolType.SAVE_NOTE;
     }
 }
