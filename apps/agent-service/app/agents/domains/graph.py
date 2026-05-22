@@ -7,164 +7,18 @@ from langgraph.graph import END, StateGraph
 from agents.agent_state import AgentState
 from agents.domains.education.prompts import EDUCATION_BASE_PROMPT, USE_CASE_HINTS
 from services.tool_execution_service import execute_tool_call
+from tools.tool_registry import get_available_tools
 
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-# ── Tool definitions ──────────────────────────────────────────────────────────
-
-EDUCATION_TOOLS = [
-    {
-        "name": "course_search",
-        "description": "Шукає курси за темою або навичкою",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Пошуковий запит, наприклад 'Python для початківців'",
-                },
-                "level": {
-                    "type": "string",
-                    "description": "Рівень: beginner, intermediate, advanced, any",
-                    "default": "any",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Максимум результатів (1-10)",
-                    "default": 5,
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "course_info",
-        "description": "Детальна інформація про конкретний курс за його ID",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "course_id": {
-                    "type": "string",
-                    "description": "ID курсу",
-                },
-            },
-            "required": ["course_id"],
-        },
-    },
-    {
-        "name": "save_progress",
-        "description": "Зберігає прогрес студента по уроку",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "string",
-                    "description": "ID користувача",
-                },
-                "course_id": {
-                    "type": "string",
-                    "description": "ID курсу",
-                },
-                "lesson_id": {
-                    "type": "string",
-                    "description": "ID уроку",
-                },
-            },
-            "required": ["user_id", "course_id", "lesson_id"],
-        },
-    },
-]
-
-SHARED_TOOLS = [
-    {
-        "name": "get_current_time",
-        "description": "Повертає поточну дату і час у вказаному часовому поясі",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "timezone": {
-                    "type": "string",
-                    "description": "Часовий пояс, наприклад UTC або Europe/Kyiv",
-                    "default": "UTC",
-                },
-            },
-        },
-    },
-    {
-        "name": "search_web",
-        "description": "Пошук в інтернеті для отримання актуальної інформації",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Пошуковий запит",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Максимум результатів",
-                    "default": 3,
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "save_note",
-        "description": "Зберігає нотатку для поточної сесії",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "session_id": {
-                    "type": "string",
-                    "description": "ID сесії",
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Текст нотатки",
-                },
-            },
-            "required": ["session_id", "content"],
-        },
-    },
-    {
-        "name": "http_request",
-        "description": "Виконує HTTP запит до зовнішнього API або сервісу",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "Повний URL для запиту",
-                },
-                "method": {
-                    "type": "string",
-                    "description": "HTTP метод: GET, POST, PUT, DELETE",
-                    "default": "GET",
-                },
-                "headers": {
-                    "type": "object",
-                    "description": "Заголовки запиту у форматі key-value",
-                    "default": {},
-                },
-                "body": {
-                    "type": "string",
-                    "description": "Тіло запиту для POST/PUT (JSON рядком)",
-                    "default": "",
-                },
-            },
-            "required": ["url"],
-        },
-    },
-]
-
 # ── Domain configuration ──────────────────────────────────────────────────────
+# Tool metadata is owned by Sofia (tool_registry.get_available_tools).
+# This config only adds use-case-level prompt hints and tool filtering.
 
 DOMAIN_CONFIG = {
     "education": {
-        "all_tools": EDUCATION_TOOLS + SHARED_TOOLS,
         "base_prompt": EDUCATION_BASE_PROMPT,
         "use_case_hints": USE_CASE_HINTS,
         "tools_by_use_case": {
@@ -195,12 +49,14 @@ def _get_system_prompt(domain: str, use_case: str | None = None) -> str:
 
 
 def _get_tools_for_domain(domain: str, use_case: str | None = None) -> list[dict]:
+    """Returns tool metadata for the LLM, filtered by domain and use case."""
+    all_tools = get_available_tools(domain)
+
+    if not use_case:
+        return all_tools
+
     config = DOMAIN_CONFIG.get(domain)
     if not config:
-        return SHARED_TOOLS
-
-    all_tools = config["all_tools"]
-    if not use_case:
         return all_tools
 
     allowed = config["tools_by_use_case"].get(use_case)
@@ -357,7 +213,6 @@ async def tool_node(state: AgentState) -> dict:
             execution_id=state["execution_id"],
             domain=state.get("domain"),
             step_count=state.get("step_count", 0),
-            max_steps=state.get("max_steps", 10),
         )
 
         _emit_sse("tool_call_finished", {
