@@ -213,11 +213,14 @@ def _build_openai_messages(
             continue
 
         if role == "tool":
-            messages.append({
+            tool_msg = {
                 "role": "tool",
                 "tool_call_id": msg.get("tool_call_id", ""),
                 "content": content if isinstance(content, str) else str(content),
-            })
+            }
+            if "name" in msg:
+                tool_msg["name"] = msg["name"]
+            messages.append(tool_msg)
         elif role == "assistant":
             entry: dict = {"role": "assistant"}
             if isinstance(content, str):
@@ -422,6 +425,7 @@ async def tool_node(state: AgentState) -> dict:
         tool_results.append({
             "role": "tool",
             "tool_call_id": tc["id"],
+            "name": tc["function"]["name"],
             "content": result.get("result", str(result)),
         })
 
