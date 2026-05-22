@@ -16,3 +16,8 @@ python-dotenv>=1.0.0
 
 # ─── Web scraping (website_analyzer_tool — future) ──────────────────────────
 beautifulsoup4>=4.12.0
+pydantic>=2.0
+httpx>=0.27
+langgraph>=0.4.0
+anthropic>=0.50.0
+python-dotenv>=1.0.0
