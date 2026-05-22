@@ -3,8 +3,12 @@ package com.aidivers.agenticstudio.deployments;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -13,6 +17,9 @@ import java.util.UUID;
 public class DeploymentController {
 
     private final DeploymentSettingsService deploymentSettingsService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     @PutMapping("/agents/{agentId}/deployment")
     public DeploymentSettingsResponse upsertDeploymentSettings(
@@ -50,6 +57,29 @@ public class DeploymentController {
         DeploymentSettings savedSettings = deploymentSettingsService.save(agentId, settings);
 
         return mapToResponse(savedSettings);
+    }
+
+    @GetMapping("/public/widgets/{deploymentSlug}/config")
+    public WidgetConfigResponse getWidgetConfig(@PathVariable String deploymentSlug) {
+        DeploymentSettings settings;
+
+        try {
+            settings = deploymentSettingsService.getByDeploymentSlug(deploymentSlug);
+        } catch (EntityNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Widget deployment not found");
+        }
+
+        if (!settings.isPublicAccessEnabled() || !settings.isWidgetEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Widget deployment is not enabled");
+        }
+
+        return WidgetConfigResponse.builder()
+                .deploymentSlug(settings.getDeploymentSlug())
+                .agentName(settings.getAgent().getName())
+                .welcomeMessage("Вітаю! Чим можу допомогти?")
+                .primaryColor("#2563eb")
+                .allowedOrigins(List.of(frontendUrl))
+                .build();
     }
 
 
