@@ -8,7 +8,26 @@ from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
 
 from agents.agent_state import AgentState
-from agents.domains.education.prompts import EDUCATION_BASE_PROMPT, USE_CASE_HINTS
+from agents.domains.education.prompts import (
+    EDUCATION_BASE_PROMPT,
+    USE_CASE_HINTS as EDUCATION_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as EDUCATION_TOOLS_BY_USE_CASE,
+)
+from agents.domains.ecommerce.prompts import (
+    ECOMMERCE_BASE_PROMPT,
+    USE_CASE_HINTS as ECOMMERCE_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as ECOMMERCE_TOOLS_BY_USE_CASE,
+)
+from agents.domains.tourism.prompts import (
+    TOURISM_BASE_PROMPT,
+    USE_CASE_HINTS as TOURISM_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as TOURISM_TOOLS_BY_USE_CASE,
+)
+from agents.domains.general.prompts import (
+    GENERAL_BASE_PROMPT,
+    USE_CASE_HINTS as GENERAL_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as GENERAL_TOOLS_BY_USE_CASE,
+)
 from services.tool_execution_service import execute_tool_call
 from tools.tool_registry import get_available_tools
 
@@ -25,19 +44,23 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DOMAIN_CONFIG = {
     "education": {
         "base_prompt": EDUCATION_BASE_PROMPT,
-        "use_case_hints": USE_CASE_HINTS,
-        "tools_by_use_case": {
-            "learning_support": [
-                "course_search", "web_search", "save_progress",
-                "save_note", "get_current_time",
-            ],
-            "course_info": [
-                "course_search", "course_info", "web_search", "get_current_time",
-            ],
-            "skill_development": [
-                "course_search", "save_progress", "web_search", "get_current_time",
-            ],
-        },
+        "use_case_hints": EDUCATION_USE_CASE_HINTS,
+        "tools_by_use_case": EDUCATION_TOOLS_BY_USE_CASE,
+    },
+    "ecommerce": {
+        "base_prompt": ECOMMERCE_BASE_PROMPT,
+        "use_case_hints": ECOMMERCE_USE_CASE_HINTS,
+        "tools_by_use_case": ECOMMERCE_TOOLS_BY_USE_CASE,
+    },
+    "tourism": {
+        "base_prompt": TOURISM_BASE_PROMPT,
+        "use_case_hints": TOURISM_USE_CASE_HINTS,
+        "tools_by_use_case": TOURISM_TOOLS_BY_USE_CASE,
+    },
+    "general": {
+        "base_prompt": GENERAL_BASE_PROMPT,
+        "use_case_hints": GENERAL_USE_CASE_HINTS,
+        "tools_by_use_case": GENERAL_TOOLS_BY_USE_CASE,
     },
 }
 

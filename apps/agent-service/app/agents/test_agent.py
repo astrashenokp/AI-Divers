@@ -201,16 +201,225 @@ def run_sync_tests():
     test_tool_registry_has_education()
 
 
+# ── 5. Ecommerce graph integration ─────────────────────────────────────────
+
+
+async def test_ecommerce_graph_simple_query():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "які у вас є товари?"},
+        ],
+        "domain": "ecommerce",
+        "use_case": "customer_support",
+        "execution_id": _make_exec_id(),
+        "step_count": 0,
+        "max_steps": 5,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    assert last_msg["role"] == "assistant"
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert isinstance(content, str) and len(content) > 0
+    print(f"  ✅ ecommerce_graph simple query — response length: {len(content)} chars")
+    print(f"     response preview: {content[:100]}...")
+
+
+async def test_ecommerce_graph_with_tool_call():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "знайди навушники"},
+        ],
+        "domain": "ecommerce",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 0,
+        "max_steps": 10,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    assert last_msg["role"] == "assistant"
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    print(f"  ✅ ecommerce_graph with tool call — response length: {len(content)} chars")
+    print(f"     response preview: {content[:100]}...")
+
+
+async def test_ecommerce_graph_max_steps_guardrail():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "розкажи про асортимент"},
+        ],
+        "domain": "ecommerce",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 6,
+        "max_steps": 5,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert "крок" in content.lower() or "ліміт" in content.lower()
+    print(f"  ✅ ecommerce_graph max_steps guardrail — guardrail triggered")
+    print(f"     response: {content[:150]}...")
+
+
+# ── 6. Tourism graph integration ──────────────────────────────────────────
+
+
+async def test_tourism_graph_simple_query():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "що можна подивитись у Львові?"},
+        ],
+        "domain": "tourism",
+        "use_case": "destination_info",
+        "execution_id": _make_exec_id(),
+        "step_count": 0,
+        "max_steps": 5,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    assert last_msg["role"] == "assistant"
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert isinstance(content, str) and len(content) > 0
+    print(f"  ✅ tourism_graph simple query — response length: {len(content)} chars")
+    print(f"     response preview: {content[:100]}...")
+
+
+async def test_tourism_graph_with_tool_call():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "забронюй готель в Києві"},
+        ],
+        "domain": "tourism",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 0,
+        "max_steps": 10,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    assert last_msg["role"] == "assistant"
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    print(f"  ✅ tourism_graph with tool call — response length: {len(content)} chars")
+    print(f"     response preview: {content[:100]}...")
+
+
+async def test_tourism_graph_max_steps_guardrail():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "куди поїхати відпочивати?"},
+        ],
+        "domain": "tourism",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 8,
+        "max_steps": 5,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert "крок" in content.lower() or "ліміт" in content.lower()
+    print(f"  ✅ tourism_graph max_steps guardrail — guardrail triggered")
+    print(f"     response: {content[:150]}...")
+
+
+# ── 7. General graph integration ──────────────────────────────────────────
+
+
+async def test_general_graph_simple_query():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "розкажи цікавий факт"},
+        ],
+        "domain": "general",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 0,
+        "max_steps": 5,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    assert last_msg["role"] == "assistant"
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert isinstance(content, str) and len(content) > 0
+    print(f"  ✅ general_graph simple query — response length: {len(content)} chars")
+    print(f"     response preview: {content[:100]}...")
+
+
+async def test_general_graph_max_steps_guardrail():
+    initial_state: AgentState = {
+        "messages": [
+            {"role": "user", "content": "напиши вірш"},
+        ],
+        "domain": "general",
+        "use_case": None,
+        "execution_id": _make_exec_id(),
+        "step_count": 5,
+        "max_steps": 3,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+    last_msg = result["messages"][-1]
+    content = last_msg.get("content", "")
+    if isinstance(content, list):
+        texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        content = " ".join(texts)
+    assert "крок" in content.lower() or "ліміт" in content.lower()
+    print(f"  ✅ general_graph max_steps guardrail — guardrail triggered")
+    print(f"     response: {content[:150]}...")
+
+
 async def run_async_tests():
-    print("\n🧪 Education graph integration tests:")
-
     has_api_key = bool(os.getenv("GROQ_API_KEY"))
-    if not has_api_key:
-        print("  ⚠️  GROQ_API_KEY не встановлено — тести будуть у демо-режимі")
 
+    print("\n🧪 Education graph integration tests:")
+    if not has_api_key:
+        print("  ⚠️  GROQ_API_KEY не встановлено — демо-режим")
     await test_education_graph_simple_query()
     await test_education_graph_with_tool_call()
     await test_education_graph_max_steps_guardrail()
+
+    print("\n🧪 Ecommerce graph integration tests:")
+    await test_ecommerce_graph_simple_query()
+    await test_ecommerce_graph_with_tool_call()
+    await test_ecommerce_graph_max_steps_guardrail()
+
+    print("\n🧪 Tourism graph integration tests:")
+    await test_tourism_graph_simple_query()
+    await test_tourism_graph_with_tool_call()
+    await test_tourism_graph_max_steps_guardrail()
+
+    print("\n🧪 General graph integration tests:")
+    await test_general_graph_simple_query()
+    await test_general_graph_max_steps_guardrail()
 
 
 if __name__ == "__main__":

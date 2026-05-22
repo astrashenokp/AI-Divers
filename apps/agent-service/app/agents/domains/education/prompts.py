@@ -28,3 +28,16 @@ USE_CASE_HINTS: dict[str, str] = {
 - Рекомендуй курси та матеріали.
 - Відстежуй прогрес користувача.""",
 }
+
+TOOLS_BY_USE_CASE: dict[str, list[str]] = {
+    "learning_support": [
+        "course_search", "search_web", "save_progress",
+        "save_note", "get_current_time",
+    ],
+    "course_info": [
+        "course_search", "course_info", "search_web", "get_current_time",
+    ],
+    "skill_development": [
+        "course_search", "save_progress", "search_web", "get_current_time",
+    ],
+}
