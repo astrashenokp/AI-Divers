@@ -313,6 +313,15 @@ async def reason_node(state: AgentState) -> dict:
                     _attempt + 1, _max_retries, _wait, state["execution_id"],
                 )
                 await asyncio.sleep(_wait)
+            elif "400" in _msg and "tool_use_failed" in _msg:
+                logger.warning("Llama tool format error: %s", _msg)
+                return {
+                    "messages": [{
+                        "role": "assistant", 
+                        "content": "Вибачте, сталася внутрішня помилка форматування інструменту (Llama-3.3 bug). Я спробую ще раз або відповім без інструменту."
+                    }],
+                    "step_count": state.get("step_count", 0) + 1,
+                }
             else:
                 raise
     msg = response.choices[0].message

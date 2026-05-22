@@ -111,13 +111,17 @@ async def execute_analyze_website(args: dict) -> str:
         )
     }
 
-    async with httpx.AsyncClient(
-        timeout=15.0,
-        follow_redirects=True,
-        headers=headers,
-    ) as client:
-        response = await client.get(validated.url)
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=headers) as client:
+            response = await client.get(validated.url)
+            response.raise_for_status()
+            html = response.text
+    except httpx.RequestError as e:
+        return f"Error: Не вдалося підключитися до {validated.url} ({type(e).__name__})"
+    except httpx.HTTPStatusError as e:
+        return f"Error: Сайт повернув помилку {e.response.status_code}"
+    except Exception as e:
+        return f"Error: Непередбачувана помилка при завантаженні сайту: {str(e)}"
 
     content_type = response.headers.get("content-type", "")
     if "text/html" not in content_type and "application/xhtml" not in content_type:
