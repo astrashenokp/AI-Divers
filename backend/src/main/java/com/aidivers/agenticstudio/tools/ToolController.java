@@ -125,20 +125,20 @@ public class ToolController {
                                 )
                         ),
                         category(
-                                "other",
+                                "general",
                                 "Інше",
                                 "General tools for tasks that do not fit the main categories yet.",
                                 List.of(
                                         tool(
                                                 ToolType.GET_CURRENT_TIME,
                                                 "Повертає поточну дату і час.",
-                                                "other",
+                                                "general",
                                                 Map.<String, Object>of("timezone", "string")
                                         ),
                                         tool(
                                                 ToolType.WEB_SEARCH,
                                                 "Шукає актуальну інформацію в інтернеті.",
-                                                "other",
+                                                "general",
                                                 Map.<String, Object>of(
                                                         "query", "string",
                                                         "max_results", "integer"
@@ -147,7 +147,7 @@ public class ToolController {
                                         tool(
                                                 ToolType.SAVE_NOTE,
                                                 "Зберігає нотатку для поточної сесії.",
-                                                "other",
+                                                "general",
                                                 Map.<String, Object>of(
                                                         "session_id", "string",
                                                         "content", "string"
@@ -156,7 +156,7 @@ public class ToolController {
                                         tool(
                                                 ToolType.HTTP_REQUEST,
                                                 "Виконує HTTP запит до зовнішнього API.",
-                                                "other",
+                                                "general",
                                                 Map.<String, Object>of(
                                                         "url", "string",
                                                         "method", "string",
