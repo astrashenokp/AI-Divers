@@ -18,6 +18,7 @@ public class InternalAgentExecutionRequest {
     private String system_prompt;
     private List<String> tools;
     private Map<String, Object> guardrails;
+    private List<Map<String, String>> messages;
     private String model_provider;
     private String model_name;
     private Map<String, Object> metadata;

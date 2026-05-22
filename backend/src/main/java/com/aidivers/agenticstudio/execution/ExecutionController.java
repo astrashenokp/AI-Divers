@@ -182,19 +182,22 @@ public class ExecutionController {
         List<AgentTool> tools = agentToolService.findEnabledByAgentId(agent.getId());
         Guardrail guardrail = guardrailService.findByAgentId(agent.getId()).orElse(null);
         String domain = request.getMetadata() == null ? null : request.getMetadata().getDomain();
+        String effectiveDomain = resolveDomain(domain);
+        int effectiveMaxSteps = effectiveMaxSteps(guardrail, effectiveDomain);
 
         return InternalAgentExecutionRequest.builder()
                 .executionId(executionId.toString())
                 .message(request.getMessage())
                 .sessionId(session.getId().toString())
-                .domain(domain)
+                .domain(effectiveDomain)
                 .use_case(null)
-                .max_steps(maxSteps(guardrail))
+                .max_steps(effectiveMaxSteps)
                 .system_prompt(agent.getSystemPrompt())
                 .tools(tools.stream()
                         .map(tool -> tool.getType().getId())
                         .toList())
-                .guardrails(toGuardrailsMap(guardrail))
+                .guardrails(toGuardrailsMap(guardrail, effectiveMaxSteps))
+                .messages(toPythonMessages(session))
                 .model_provider(agent.getModelProvider())
                 .model_name(agent.getModelName())
                 .metadata(Map.of(
@@ -205,10 +208,39 @@ public class ExecutionController {
                 .build();
     }
 
-    private Map<String, Object> toGuardrailsMap(Guardrail guardrail) {
+    private String resolveDomain(String domain) {
+        if (domain == null || domain.isBlank()) {
+            return "general";
+        }
+        return switch (domain) {
+            case "ecommerce", "education", "tourism", "general" -> domain;
+            default -> "general";
+        };
+    }
+
+    private List<Map<String, String>> toPythonMessages(ChatSession session) {
+        return messageService.findBySessionId(session.getId()).stream()
+                .filter(message -> message.getRole() != MessageRole.TOOL)
+                .map(message -> Map.of(
+                        "role", toPythonRole(message.getRole()),
+                        "content", message.getContent()
+                ))
+                .toList();
+    }
+
+    private String toPythonRole(MessageRole role) {
+        return switch (role) {
+            case USER -> "user";
+            case ASSISTANT -> "assistant";
+            case SYSTEM -> "system";
+            case TOOL -> "tool";
+        };
+    }
+
+    private Map<String, Object> toGuardrailsMap(Guardrail guardrail, int effectiveMaxSteps) {
         if (guardrail == null) {
             return Map.of(
-                    "maxSteps", 10,
+                    "maxSteps", effectiveMaxSteps,
                     "forbiddenTopics", List.of(),
                     "requireHumanConfirmationForTools", List.of(
                             ToolType.HTTP_REQUEST.getId(),
@@ -219,7 +251,7 @@ public class ExecutionController {
         }
 
         return Map.of(
-                "maxSteps", maxSteps(guardrail),
+                "maxSteps", effectiveMaxSteps,
                 "forbiddenTopics", guardrail.getForbiddenTopicsJson() == null ? List.of() : guardrail.getForbiddenTopicsJson(),
                 "requireHumanConfirmationForTools", guardrail.getHumanConfirmationToolsJson() == null
                         ? List.of()
@@ -229,8 +261,22 @@ public class ExecutionController {
         );
     }
 
-    private int maxSteps(Guardrail guardrail) {
-        return guardrail == null || guardrail.getMaxSteps() == 0 ? 10 : guardrail.getMaxSteps();
+    private int effectiveMaxSteps(Guardrail guardrail, String domain) {
+        int ceiling = domainMaxSteps(domain);
+        int requested = guardrail == null || guardrail.getMaxSteps() <= 0
+                ? ceiling
+                : guardrail.getMaxSteps();
+
+        return Math.min(requested, ceiling);
+    }
+
+    private int domainMaxSteps(String domain) {
+        return switch (domain) {
+            case "ecommerce" -> 8;
+            case "education", "tourism" -> 10;
+            case "general" -> 6;
+            default -> 10;
+        };
     }
 
     private UUID parseSessionId(String sessionId) {
