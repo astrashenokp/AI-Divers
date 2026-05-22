@@ -105,7 +105,7 @@ const isKnownEventName = (eventName: string): eventName is LiveTrackingEventName
 const readStatus = (
   source: Record<string, unknown>,
 ): ExecutionStatus | ToolRunStatus => {
-  const status = readString(source, ["status"]);
+  const status = readString(source, ["status"])?.toLowerCase();
 
   if (
     status === "running" ||
@@ -156,17 +156,25 @@ export const normalizeLiveTrackingEvent = (
 
   return {
     id: readString(source, ["id", "eventId"]),
-    executionId: readString(source, ["executionId"]),
+    executionId: readString(source, ["executionId", "execution_id"]),
     type: isKnownEventName(eventName)
       ? eventName
       : readString(source, ["type", "eventName"]) ?? eventName,
-    stepNumber: readNumber(source, ["stepNumber", "step", "stepIndex"]),
+    stepNumber: readNumber(source, ["stepNumber", "step", "stepIndex", "step_index"]),
     summary,
-    toolName: readString(source, ["toolName", "tool"]),
+    toolName: readString(source, ["toolName", "tool_name", "tool"]),
     status: readStatus(source),
     timestamp,
-    input: isJsonValue(source.input) ? source.input : undefined,
-    output: isJsonValue(source.output) ? source.output : undefined,
+    input: isJsonValue(source.input)
+      ? source.input
+      : isJsonValue(source.args)
+        ? source.args
+        : undefined,
+    output: isJsonValue(source.output)
+      ? source.output
+      : isJsonValue(source.result)
+        ? source.result
+        : undefined,
     errorMessage: readString(source, ["errorMessage", "error"]),
     raw: isJsonObject(eventData) ? eventData : undefined,
   };
@@ -197,7 +205,11 @@ export const extractFinalMessage = (eventData: unknown): string | undefined => {
     return undefined;
   }
 
-  const directMessage = readString(eventData, ["finalMessage", "content"]);
+  const directMessage = readString(eventData, [
+    "finalMessage",
+    "answer",
+    "content",
+  ]);
 
   if (directMessage) {
     return directMessage;
@@ -209,7 +221,7 @@ export const extractFinalMessage = (eventData: unknown): string | undefined => {
     return undefined;
   }
 
-  return readString(output, ["finalMessage", "content"]);
+  return readString(output, ["finalMessage", "answer", "content"]);
 };
 
 export const executionStoreActions = {

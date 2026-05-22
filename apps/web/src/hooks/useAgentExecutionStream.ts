@@ -4,7 +4,12 @@ import { useCallback, useRef, useSyncExternalStore } from "react";
 import { LIVE_TRACKING_EVENTS, USE_MOCK_API } from "../lib/constants";
 import * as mockApi from "../lib/mockApi";
 import * as sessionsApi from "../lib/sessionsApi";
-import type { ApiErrorShape, ChatMessage, StreamEventHandlers } from "../lib/types";
+import type {
+  ApiErrorShape,
+  ChatMessage,
+  JsonObject,
+  StreamEventHandlers,
+} from "../lib/types";
 import {
   executionStoreActions,
   extractFinalMessage,
@@ -30,6 +35,11 @@ const toApiError = (error: unknown): ApiErrorShape => ({
   message: error instanceof Error ? error.message : "Unexpected stream error.",
 });
 
+export interface StartExecutionOptions {
+  sessionId?: string;
+  metadata?: JsonObject;
+}
+
 export const useAgentExecutionStream = (agentId?: string, sessionId?: string) => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const state = useSyncExternalStore(
@@ -45,7 +55,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
   }, []);
 
   const startExecution = useCallback(
-    async (message: string) => {
+    async (message: string, options: StartExecutionOptions = {}) => {
       if (!agentId) {
         throw new Error("Select an agent before starting execution.");
       }
@@ -54,7 +64,8 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
         stopExecution();
       }
 
-      const activeSessionId = sessionId ?? state.session?.id ?? "session-local";
+      const activeSessionId =
+        options.sessionId ?? sessionId ?? state.session?.id ?? "session-local";
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
@@ -120,6 +131,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
           {
             sessionId: activeSessionId,
             message,
+            metadata: options.metadata,
           },
           handlers,
           abortController.signal,
