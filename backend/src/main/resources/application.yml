@@ -14,5 +14,14 @@ spring:
         jdbc:
           time_zone: UTC
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
+
+    flyway:
+      enabled: true
+
+  agent-service:
+    url: ${AGENT_SERVICE_URL:http://localhost:8001}
+
+  app:
+    frontend-url: ${FRONTEND_URL:http://localhost:3000}
