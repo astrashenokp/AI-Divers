@@ -1,13 +1,13 @@
-import { SendHorizontal } from "lucide-react";
 import {
   AgentThinkingPanel,
   type ToolEventViewModel,
 } from "@/components/chat/AgentThinkingPanel";
+import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatLayout } from "@/components/chat/ChatLayout";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { ChatMessageViewModel } from "@/components/chat/ChatMessageBubble";
-import styles from "./page.module.scss";
+import { AiDiverGuide } from "@/components/help/AiDiverGuide";
 
 const mockMessages: ChatMessageViewModel[] = [
   {
@@ -34,7 +34,8 @@ const mockMessages: ChatMessageViewModel[] = [
   {
     id: "msg-4",
     role: "assistant",
-    content: "Перевіряю, чи допоможе збережена нотатка або інструмент часу...",
+    content:
+      "Перевіряю, чи допоможе збережена нотатка або інструмент часу...",
     createdAt: "09:02",
     isStreaming: true,
   },
@@ -58,17 +59,15 @@ const mockToolEvents: ToolEventViewModel[] = [
   },
 ];
 
-function ComposerPlaceholder() {
+function ChatComposerArea() {
   return (
-    <section className={styles.composer} aria-label="Поле введення повідомлення">
-      <span className={styles.composerLabel}>Повідомлення</span>
-      <div className={styles.composerBox}>
-        <span>Тут буде поле для реального повідомлення та потокової відповіді.</span>
-        <button className={styles.sendButton} type="button" disabled>
-          <SendHorizontal size={18} aria-hidden />
-        </button>
-      </div>
-    </section>
+    <>
+      <AiDiverGuide
+        title="Перше занурення у Agentic Studio?"
+        body="Я допоможу розібратися з чатом агента."
+      />
+      <ChatComposer />
+    </>
   );
 }
 
@@ -84,7 +83,7 @@ export default function ChatPage() {
       }
       messages={<ChatMessageList messages={mockMessages} />}
       activity={<AgentThinkingPanel isThinking toolEvents={mockToolEvents} />}
-      composer={<ComposerPlaceholder />}
+      composer={<ChatComposerArea />}
     />
   );
 }
