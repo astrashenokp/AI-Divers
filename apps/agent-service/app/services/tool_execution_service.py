@@ -10,7 +10,7 @@ from tools.tool_guardrails import (
     check_tool_allowed_in_domain,
     check_step_limit,
     sanitize_args,
-    VALID_DOMAINS,
+    VALID_DOMAINS,           # ← single source of truth, no local redefinition
 )
 
 logger = logging.getLogger(__name__)
@@ -25,8 +25,6 @@ ERROR_TYPE_UNKNOWN_TOOL = "unknown_tool"
 ERROR_TYPE_VALIDATION   = "validation_error"
 ERROR_TYPE_BLOCKED      = "blocked"
 ERROR_TYPE_RUNTIME      = "runtime_error"
-
-VALID_DOMAINS = frozenset({"ecommerce", "education", "tourism", "general"})
 
 
 def _now_iso() -> str:
@@ -54,7 +52,7 @@ def _make_result(
     error_type: str | None = None,
 ) -> dict:
     """
-    Unified ToolResult dict — shape is guaranteed regardless of success or failure.
+    Unified ToolResult dict.
 
     {
         "tool_name":    str,
@@ -120,7 +118,7 @@ async def execute_tool_call(
             "Unknown domain | domain=%s | tool=%s | execution_id=%s",
             domain, tool_name, execution_id,
         )
-        domain = None  # graceful fallback
+        domain = None
 
     # ── Log safely — redact sensitive args ────────────────────────────────
     safe_args = sanitize_args(args)
@@ -130,12 +128,7 @@ async def execute_tool_call(
     )
 
     try:
-        # ── Guardrail 1: Step limit (hard ceiling) ─────────────────────────
-        # Викладач: "Стеля не обговорюється. Max steps, timeout, budget."
         check_step_limit(step_count, domain)
-
-        # ── Guardrail 2: Domain allowlist ──────────────────────────────────
-        # Викладач: "Tool allowlist — missing tools can't be called"
         check_tool_allowed_in_domain(tool_name, domain)
 
     except ToolGuardrailError as exc:
@@ -207,7 +200,6 @@ async def execute_tool_call(
             domain=domain,
         )
 
-    # ── Guardrail block (from tool itself) ─────────────────────────────────
     except ToolGuardrailError as exc:
         completed_at = _now_iso()
         logger.warning(
@@ -225,7 +217,6 @@ async def execute_tool_call(
             error_type=ERROR_TYPE_BLOCKED,
         )
 
-    # ── Validation error ───────────────────────────────────────────────────
     except ValidationError as exc:
         completed_at = _now_iso()
         logger.warning(
@@ -243,7 +234,6 @@ async def execute_tool_call(
             error_type=ERROR_TYPE_VALIDATION,
         )
 
-    # ── Runtime error ──────────────────────────────────────────────────────
     except Exception as exc:
         completed_at = _now_iso()
         logger.error(
