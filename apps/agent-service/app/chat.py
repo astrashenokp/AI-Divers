@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from dotenv import load_dotenv
 
-_DOTENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
+_DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=_DOTENV_PATH)
 
 from agents.agent_graph import agent_graph
@@ -114,7 +114,7 @@ async def _run_agent(
         "use_case": None,
         "execution_id": execution_id,
         "step_count": 0,
-        "max_steps":  10,
+        "max_steps":  15,
     }
 
     result = await agent_graph.ainvoke(state)

@@ -129,7 +129,12 @@ def _to_openai_tools(tools: list[dict]) -> list[dict]:
 
 
 def _relax_number_types(schema: dict) -> dict:
-    """Relaxes integer/number fields to accept strings (Groq llama quirk)."""
+    """Relaxes integer/number/boolean fields to accept strings (Groq llama quirk).
+
+    Llama-4 (and other Groq models) sometimes pass numeric and boolean
+    fields as JSON strings. We convert them to string type in the schema
+    and fix them back in _coerce_tool_args.
+    """
     t = schema.get("type")
     if t in ("integer", "number"):
         schema["type"] = "string"
@@ -139,6 +144,14 @@ def _relax_number_types(schema: dict) -> dict:
         schema["description"] = (
             schema.get("description", "") +
             f" (приймає {t}, буде конвертовано автоматично)"
+        )
+    elif t == "boolean":
+        schema["type"] = "string"
+        schema["enum"] = ["true", "false"]
+        schema.pop("default", None)
+        schema["description"] = (
+            schema.get("description", "") +
+            " (передай 'true' або 'false' як рядок)"
         )
     return schema
 
@@ -280,7 +293,28 @@ async def reason_node(state: AgentState) -> dict:
     if tools:
         kwargs["tools"] = tools
 
-    response = client.chat.completions.create(**kwargs)
+    # ── Call Groq with retry on rate-limit (429) ──────────────────────────
+    import time, re as _re
+    _max_retries = 3
+    for _attempt in range(_max_retries):
+        try:
+            response = client.chat.completions.create(**kwargs)
+            break
+        except Exception as _exc:
+            _msg = str(_exc)
+            if "429" in _msg and _attempt < _max_retries - 1:
+                # Try to parse wait time from Groq error message
+                _wait = 10.0
+                _m = _re.search(r"try again in (\d+(?:\.\d+)?)s", _msg)
+                if _m:
+                    _wait = min(float(_m.group(1)) + 1.0, 30.0)
+                logger.warning(
+                    "Rate limit hit (attempt %d/%d) — waiting %.1fs | exec=%s",
+                    _attempt + 1, _max_retries, _wait, state["execution_id"],
+                )
+                time.sleep(_wait)
+            else:
+                raise
     msg = response.choices[0].message
 
     assistant_msg: dict = {"role": "assistant"}
@@ -313,11 +347,19 @@ async def reason_node(state: AgentState) -> dict:
 
 
 def _coerce_tool_args(arguments_json: str) -> dict:
-    """Parses tool arguments and coerces string numbers to proper types."""
+    """Parses tool arguments and coerces string numbers/booleans to proper types."""
     args = json.loads(arguments_json)
     for key, value in args.items():
         if isinstance(value, str):
-            # Try int first, then float
+            stripped = value.strip().lower()
+            # Boolean coercion (Llama-4 passes booleans as strings)
+            if stripped == "true":
+                args[key] = True
+                continue
+            if stripped == "false":
+                args[key] = False
+                continue
+            # Numeric coercion
             stripped = value.strip()
             if stripped.lstrip("-").isdigit():
                 args[key] = int(stripped)

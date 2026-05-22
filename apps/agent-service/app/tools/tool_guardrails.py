@@ -57,14 +57,14 @@ REQUIRES_HUMAN_CONFIRMATION: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 
 DOMAIN_MAX_STEPS: dict[str, int] = {
-    "ecommerce": 8,
-    "education": 10,
-    "tourism":   10,
-    "general":   6,
+    "ecommerce": 15,
+    "education": 15,
+    "tourism":   15,
+    "general":   15,
 }
 
-DEFAULT_MAX_STEPS = 10
-DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_MAX_STEPS = 15
+DEFAULT_TIMEOUT_SECONDS = 60
 
 # ---------------------------------------------------------------------------
 # Input sanitization — context filtering
