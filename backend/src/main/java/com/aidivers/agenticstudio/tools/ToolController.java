@@ -180,7 +180,9 @@ public class ToolController {
             tool.setName(request.getName());
             tool.setEnabled(request.isEnabled());
 
-            if (request.getConfigJson() != null && !request.getConfigJson().isBlank()) {
+            if (request.getConfig() != null) {
+                tool.setConfigJson(request.getConfig());
+            } else if (request.getConfigJson() != null && !request.getConfigJson().isBlank()) {
                 Map<String, Object> configMap = objectMapper.readValue(
                         request.getConfigJson(),
                         new TypeReference<Map<String, Object>>() {}
@@ -200,6 +202,7 @@ public class ToolController {
                     .agentId(savedTool.getAgent().getId())
                     .type(savedTool.getType().getId())
                     .name(savedTool.getName())
+                    .config(savedTool.getConfigJson())
                     .configJson(responseConfig)
                     .enabled(savedTool.isEnabled())
                     .createdAt(savedTool.getCreatedAt())

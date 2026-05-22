@@ -15,7 +15,7 @@ public class AgentServiceClient {
         this.webClient = agentServiceWebClient;
     }
 
-    public Flux<ServerSentEvent<String>> streamAgentExecution(AgentExecutionRequest request) {
+    public Flux<ServerSentEvent<String>> streamAgentExecution(InternalAgentExecutionRequest request) {
         ParameterizedTypeReference<ServerSentEvent<String>> typeRef = new ParameterizedTypeReference<>() {};
 
         return webClient.post()
