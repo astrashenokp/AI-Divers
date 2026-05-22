@@ -53,3 +53,28 @@ class HttpRequestInput(BaseModel):
         le=30.0,
         description="Request timeout in seconds. Min 1, max 30. Default 15.",
     )
+
+
+# ── Education domain ──────────────────────────────────────────────────────────
+
+
+class CourseSearchInput(BaseModel):
+    query: str = Field(..., description="Search query for courses, e.g. 'Python для початківців'")
+    level: str = Field(
+        default="any",
+        description="Course difficulty level: beginner, intermediate, advanced, any",
+    )
+    max_results: int = Field(
+        default=5, ge=1, le=10,
+        description="Maximum number of course results to return",
+    )
+
+
+class CourseInfoInput(BaseModel):
+    course_id: str = Field(..., description="Unique identifier of the course")
+
+
+class SaveProgressInput(BaseModel):
+    user_id: str = Field(..., description="Unique identifier of the user/student")
+    course_id: str = Field(..., description="Unique identifier of the course")
+    lesson_id: str = Field(..., description="Unique identifier of the lesson")
