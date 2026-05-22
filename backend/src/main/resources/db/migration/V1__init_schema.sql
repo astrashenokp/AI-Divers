@@ -1,15 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE users (
-                       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                       display_name VARCHAR(255),
-                       email VARCHAR(255) UNIQUE,
-                       created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
-);
-
 CREATE TABLE agents (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        owner_id UUID,
                         name VARCHAR(255) NOT NULL,
                         description TEXT,
                         system_prompt TEXT NOT NULL,
@@ -132,8 +124,6 @@ CREATE TABLE deployment_settings (
                                      CONSTRAINT fk_deployment_settings_agent
                                          FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
-
-CREATE INDEX idx_agents_owner_id ON agents(owner_id);
 
 CREATE INDEX idx_agent_tools_agent_id ON agent_tools(agent_id);
 CREATE INDEX idx_agent_tools_agent_id_enabled ON agent_tools(agent_id, enabled);

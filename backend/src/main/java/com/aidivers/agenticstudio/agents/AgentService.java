@@ -30,11 +30,6 @@ public class AgentService {
                 .orElseThrow(() -> new EntityNotFoundException("Agent not found: " + id));
     }
 
-    @Transactional(readOnly = true)
-    public List<Agent> findByOwnerId(UUID ownerId) {
-        return agentRepository.findByOwnerId(ownerId);
-    }
-
     public void deleteById(UUID id) {
         agentRepository.deleteById(id);
     }
