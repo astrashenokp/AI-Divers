@@ -202,7 +202,7 @@ public class ToolController {
                     .agentId(savedTool.getAgent().getId())
                     .type(savedTool.getType().getId())
                     .name(savedTool.getName())
-                    .config(savedTool.getConfigJson())
+                    .config(savedTool.getConfigJson() == null ? Map.of() : savedTool.getConfigJson())
                     .configJson(responseConfig)
                     .enabled(savedTool.isEnabled())
                     .createdAt(savedTool.getCreatedAt())
