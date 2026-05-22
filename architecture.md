@@ -620,11 +620,11 @@ Target product tool types:
 Frontend tool categories for the `/tools` page:
 
 - `education` - UI label: `Освіта`
-- `stores` - UI label: `Магазини`
 - `tourism` - UI label: `Туризм`
-- `finance` - UI label: `Фінанси`
+- `ecommerce` - UI label: `E-commerce (Продажі)`
+- `other` - UI label: `Інше`
 
-These categories are frontend-facing product groupings. They do not replace the execution tool types above. A category contains one or more tool templates. For example, `finance` may contain an `http_request` tool template for market data, while `tourism` may contain a `web_search` or `http_request` template for travel information.
+These categories are frontend-facing product groupings. They do not replace the execution tool types above. A category contains one or more tool templates. For example, `ecommerce` may contain an `http_request` tool template for product or order data, while `tourism` may contain a `web_search` or `http_request` template for travel information.
 
 Python tool executor pattern:
 
@@ -823,21 +823,21 @@ Backend must expose tool templates in a frontend-friendly shape:
       ]
     },
     {
-      "id": "stores",
-      "label": "Магазини",
-      "description": "Tools for product lookup, order status, and store integrations",
-      "tools": []
-    },
-    {
       "id": "tourism",
       "label": "Туризм",
-      "description": "Tools for travel research, destinations, routes, and booking integrations",
+      "description": "Tools for travel research, destinations, routes, and recommendations",
       "tools": []
     },
     {
-      "id": "finance",
-      "label": "Фінанси",
-      "description": "Tools for financial data, reports, and account-safe integrations",
+      "id": "ecommerce",
+      "label": "E-commerce (Продажі)",
+      "description": "Tools for product lookup, order status, sales workflows, and customer requests",
+      "tools": []
+    },
+    {
+      "id": "other",
+      "label": "Інше",
+      "description": "General tools for tasks that do not fit the main categories yet",
       "tools": []
     }
   ]
@@ -1018,7 +1018,7 @@ Accepted execution statuses:
 Current frontend:
 
 - `/` explains what Agentic Studio is and links to the main product areas.
-- `/tools` shows the basic frontend tool categories: `Освіта`, `Магазини`, `Туризм`, `Фінанси`.
+- `/tools` shows the basic frontend tool categories: `Освіта`, `Туризм`, `E-commerce (Продажі)`, `Інше`.
 - `/chat` is a test chat with visible tool activity.
 - chat components already exist and should be reused.
 

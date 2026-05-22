@@ -1,27 +1,34 @@
-import { ArrowLeft, BookOpen, Landmark, ShoppingBag, Wrench, Map } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Compass,
+  MessageSquare,
+  ShoppingBag,
+  Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import styles from "./page.module.scss";
 
 const toolCategories = [
   {
     title: "Освіта",
-    description: "Інструменти для навчальних асистентів і пошуку знань.",
+    description: "Інструменти для навчальних асистентів, пояснень і пошуку знань.",
     icon: BookOpen,
   },
   {
-    title: "Інше",
-    description: "Перейти до спілкування з AI-чатом",
-    icon: ShoppingBag,
-  },
-  {
     title: "Туризм",
-    description: "Інструменти для маршрутів, подорожей і рекомендацій.",
-    icon: Map,
+    description: "Інструменти для маршрутів, подорожей, місць і рекомендацій.",
+    icon: Compass,
   },
   {
     title: "E-commerce (Продажі)",
-    description: "Інструменти для фінансових даних і звітів.",
-    icon: Landmark,
+    description: "Інструменти для товарів, замовлень, продажів і клієнтських запитів.",
+    icon: ShoppingBag,
+  },
+  {
+    title: "Інше",
+    description: "Загальні інструменти для задач, які не входять в основні категорії.",
+    icon: MessageSquare,
   },
 ];
 
