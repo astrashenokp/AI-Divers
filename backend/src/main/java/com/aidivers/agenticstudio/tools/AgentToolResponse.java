@@ -17,4 +17,5 @@ public class AgentToolResponse {
     private String configJson;
     private boolean enabled;
     private Instant createdAt;
+    private Instant updatedAt;
 }

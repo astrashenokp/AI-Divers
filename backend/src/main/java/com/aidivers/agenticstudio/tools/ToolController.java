@@ -208,6 +208,7 @@ public class ToolController {
                     .configJson(responseConfig)
                     .enabled(savedTool.isEnabled())
                     .createdAt(savedTool.getCreatedAt())
+                    .updatedAt(savedTool.getCreatedAt())
                     .build();
 
         } catch (IllegalArgumentException e) {
