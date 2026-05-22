@@ -1,307 +1,414 @@
-# Tools layer — achitecture & ownership
+# Tools Layer — Architecture & Ownership
 
 **Owner:** Sofia Prutska  
 **Service:** `apps/agent-service`
 
 ---
 
-## What is this folder?
+## Purpose
 
-This folder contains everything the agent needs to **act** — the actual tools it can call, their input schemas, the registry that maps names to functions, and the execution service that runs them safely.
+This folder contains everything the agent needs to **act**:
 
-If Alina's code is the **brain** (deciding what to do), this folder is the **hands** (doing it).
+- tool schemas
+- shared tools
+- domain tools
+- runtime guardrail rules
+- tool registry
+- tool metadata for the LLM
+- safe execution support consumed by `tool_execution_service.py`
+
+If Alina's code is the **brain**, this folder is the **hands** plus the **safety rails** around those hands.
 
 ---
 
-## Folder structure
+## Current Structure
 
-```
+```text
 apps/agent-service/app/
 │
-├── tools/
-│   ├── architecture_tools.md       ← this file
-│   ├── diagrams/
-│   │   └── tool_execution_flow.svg ← tool execution flow diagram
-│   ├── tool_schemas.py             ← Pydantic input schemas for every tool
-│   ├── tool_registry.py            ← TOOL_REGISTRY + AVAILABLE_TOOLS
-│   ├── current_time_tool.py        ← Tool: get current datetime
-│   ├── web_search_tool.py          ← Tool: search the web
-│   └── save_note_tool.py           ← Tool: save a note to session
+├── main.py                            ← FastAPI entrypoint for tool/debug APIs
+├── test_tools.py                      ← local runtime verification
 │
 ├── services/
-│   └── tool_execution_service.py   ← execute_tool_call() — central executor
+│   └── tool_execution_service.py      ← central executor returning ToolResult dict
 │
-├── __init__.py                     ← required for Python module resolution
-└── test_tools.py                   ← local test runner, NOT for production
+├── tools/
+│   ├── architecture_tools.md          ← this file
+│   ├── tool_schemas.py                ← all shared + domain Pydantic schemas
+│   ├── tool_registry.py               ← get_tool_registry(domain), get_available_tools(domain)
+│   ├── tool_guardrails.py             ← runtime tool safety rules
+│   │
+│   ├── current_time_tool.py           ← shared tool
+│   ├── web_search_tool.py             ← shared tool
+│   ├── save_note_tool.py              ← shared tool
+│   ├── http_request_tool.py           ← shared tool with request guardrails
+│   │
+│   ├── database_query_tool.py         ← placeholder
+│   ├── industry_presets.py            ← placeholder
+│   ├── website_analyzer_tool.py       ← placeholder
+│   │
+│   ├── ecommerce/
+│   │   ├── __init__.py
+│   │   ├── product_search_tool.py
+│   │   ├── order_status_tool.py
+│   │   └── check_price_tool.py
+│   │
+│   ├── education/
+│   │   ├── __init__.py
+│   │   ├── course_search_tool.py
+│   │   ├── course_info_tool.py
+│   │   └── save_progress_tool.py
+│   │
+│   └── tourism/
+│       ├── __init__.py
+│       ├── hotel_search_tool.py
+│       ├── itinerary_tool.py
+│       └── get_weather_tool.py
 ```
 
-## File responsibilities
+---
+
+## Architecture Model
+
+The tools layer now follows a domain-aware runtime model:
+
+```text
+Router decides domain
+   ↓
+Agent sees tools for that domain only
+   ↓
+execute_tool_call(tool_name, args, domain, step_count)
+   ↓
+Runtime guardrails
+   ├── valid domain
+   ├── step limit
+   ├── domain allowlist
+   └── sensitive arg redaction
+   ↓
+Registry lookup
+   ↓
+Tool execution
+   ↓
+Unified ToolResult dict
+```
+
+This means domain scoping exists in two places by design:
+
+1. **LLM visibility layer** via `get_available_tools(domain)`
+2. **Runtime enforcement layer** via `tool_guardrails.py`
+
+Even if the LLM or graph tries to call a wrong tool, the runtime still blocks it.
+
+---
+
+## Shared vs Domain Tools
+
+### Shared tools
+
+Available in every domain:
+
+- `get_current_time`
+- `search_web`
+- `save_note`
+- `http_request`
+
+### Domain tools
+
+`ecommerce`:
+
+- `product_search`
+- `order_status`
+- `check_price`
+
+`education`:
+
+- `course_search`
+- `course_info`
+- `save_progress`
+
+`tourism`:
+
+- `hotel_search`
+- `itinerary_plan`
+- `get_weather`
+
+`general`:
+
+- no domain-only tools
+- shared tools only
+
+---
+
+## File Responsibilities
 
 ### `tool_schemas.py`
-**What it is:** Pydantic `BaseModel` classes that define what arguments each tool accepts.
 
-**Why it exists:** The agent (LLM) sends tool arguments as raw JSON. We need to validate them before running anything. Each tool has exactly one schema.
+What it is:
 
-**Schemas defined here:**
-| Schema class | Used by |
-|---|---|
-| `GetCurrentTimeInput` | `current_time_tool.py` |
-| `SearchWebInput` | `web_search_tool.py` |
-| `SaveNoteInput` | `save_note_tool.py` |
+- one central place for **all** tool input schemas
 
-**⚠️ Change this file first** if we add a new tool — everything else depends on it.
+Why it exists:
 
----
+- LLM tool arguments arrive as raw JSON
+- validation must be explicit and shared
+- tools should not define ad hoc inline schemas
+
+Current schema groups:
+
+- shared schemas
+- ecommerce schemas
+- education schemas
+- tourism schemas
+
+Rule:
+
+- change this file first when adding a new tool
 
 ### `tool_registry.py`
-**What it is:** The master list of all available tools.
 
-**Why it exists:** Two things need to know about tools:
-1. The **LLM** — needs a list of tool names, descriptions, and input schemas to decide which one to call → `AVAILABLE_TOOLS`
-2. The **executor** — needs to know which Python function to call → `TOOL_REGISTRY`
+What it is:
 
-**Exports:**
+- the master mapping between tool names, metadata, and execution functions
+
+Current public API:
+
 ```python
-TOOL_REGISTRY: dict[str, Callable]   # "get_current_time" → execute_get_current_time
-AVAILABLE_TOOLS: list[dict]          # [{name, description, input_schema}, ...]
-get_tool_registry() -> dict          # getter function used by tool_execution_service
+get_tool_registry(domain: str | None = None) -> dict[str, Callable]
+get_available_tools(domain: str | None = None) -> list[dict]
+
+TOOL_REGISTRY = get_tool_registry()
+AVAILABLE_TOOLS = get_available_tools()
 ```
 
-**Who imports this:**
-- Alina imports `AVAILABLE_TOOLS` → passes to LLM in system prompt
-- `tool_execution_service.py` imports `get_tool_registry()` → runs tools
+Why it matters:
 
----
+- Alina uses metadata for LLM tool visibility
+- the execution service uses execute-function lookup
+- FastAPI `/tool-types` uses metadata for builder/debug integration
 
-### `current_time_tool.py`
-**What it does:** Returns the current date and time, optionally in a given timezone.
+### `tool_guardrails.py`
 
-**Status:** Fully implemented, no external dependencies.
+What it is:
 
-**Functions:**
-```python
-get_current_time_tool() -> dict          # returns tool metadata for LLM
-execute_get_current_time(args: dict) -> str  # runs the tool
-```
+- the runtime safety policy for tool execution
 
-**Example call:**
-```
-Input:  {"timezone": "Europe/Kyiv"}
-Output: "2026-05-21T15:30:00+03:00"
-```
+Current responsibilities:
 
----
+- domain allowlists
+- step ceilings
+- confirmation-required tool list
+- input redaction for safe logs
+- valid domain constants
 
-### `web_search_tool.py`
-**What it does:** Searches the web and returns a summary of results.
+Why it matters:
 
-**Status:** Skeleton ready. Needs a real search API key on hackathon day.
+- the runtime should enforce facts, not trust prompts
+- missing tools must be impossible to call
+- infinite loops must stop at a hard ceiling
 
-**Current implementation:** Uses DuckDuckGo Instant Answers (no key needed, limited results).
+### `http_request_tool.py`
 
-**Recommended upgrade:** Replace with [Serper API](https://serper.dev) or [Brave Search API](https://api.search.brave.com) for better results.
+Special role:
 
-**Functions:**
-```python
-search_web_tool() -> dict              # returns tool metadata for LLM
-execute_search_web(args: dict) -> str  # runs the tool
-```
+- shared tool for external API calls
+- defines `ToolGuardrailError`
+- blocks internal/private addresses
+- blocks disallowed HTTP methods
 
-**Example call:**
-```
-Input:  {"query": "latest AI news", "max_results": 3}
-Output: "Summary: ...\n- Result 1\n- Result 2\n- Result 3"
-```
+Status:
 
-**To upgrade on hackathon day:**
-1. Get a free Serper API key at serper.dev
-2. Replace `SEARCH_API_URL` and the request logic in `execute_search_web()`
-3. Add `SERPER_API_KEY` to `.env` and `config.py`
-
----
-
-### `save_note_tool.py`
-**What it does:** Saves a note tied to the current chat session.
-
-**Status:** Working stub (in-memory). Needs DB integration from Stas Data.
-
-**Functions:**
-```python
-save_note_tool() -> dict              # returns tool metadata for LLM
-execute_save_note(args: dict) -> str  # runs the tool
-```
-
-**To connect to DB** (coordinate with Stas Data):
-```python
-# Replace the in-memory append with:
-from app.repositories.chat_repository import save_note_to_db
-await save_note_to_db(session_id=validated.session_id, content=validated.content)
-```
-
-**Example call:**
-```
-Input:  {"session_id": "abc-123", "content": "User prefers metric units"}
-Output: "Note saved successfully for session abc-123."
-```
-
----
+- implemented
+- guarded
+- ready for integration
 
 ### `services/tool_execution_service.py`
-**What it is:** The single entry point that the agent calls whenever it wants to use any tool.
 
-**Status:** Fully implemented.
+What it is:
 
-**Why it exists:** The agent shouldn't call tool functions directly — it calls `execute_tool_call()` and we handle everything: lookup, validation, execution, error catching.
+- the single runtime entry point for all tool calls
 
-**Function:**
+Current function signature:
+
 ```python
-async def execute_tool_call(tool_name: str, args: dict) -> str
+async def execute_tool_call(
+    tool_name: str,
+    args: dict,
+    execution_id: str | None = None,
+    domain: str | None = None,
+    step_count: int = 0,
+) -> dict:
 ```
 
-**Safety guarantees:**
-- Unknown tool name → returns safe error string (never crashes)
-- Invalid args → Pydantic catches it → returns descriptive error
-- Runtime exception → caught, logged, returned as string
-- Agent always gets back a string — never a raw exception
+Current responsibilities:
 
----
+- validate domain
+- sanitize logged arguments
+- enforce step limit
+- enforce domain allowlist
+- handle unknown tools safely
+- catch tool guardrail blocks
+- catch validation errors
+- catch runtime errors
+- return a unified ToolResult dict
 
-## How it all connects
+Current ToolResult shape:
 
-```
-┌───────────────────────────────────────────────────┐
-│           Alina's Agent (agent_graph.py)          │
-│                                                   │
-│ Uses AVAILABLE_TOOLS to tell LLM what's available │
-│ Calls execute_tool_call() when LLM picks a too    │
-└───────────────────┬───────────────────────────────┘
-                    │ execute_tool_call("search_web", {"query": "..."})
-                    ▼
-┌───────────────────────────────────────────────────┐
-│           tool_execution_service.py               │
-│                                                   │
-│   1. Looks up "search_web" in TOOL_REGISTRY       │
-│   2. Validates args with Pydantic schema          │
-│   3. Calls execute_search_web(args)               │
-│   4. Returns result string (or error string)      │
-└─────────────────────┬─────────────────────────────┘
-                      │
-          ┌───────────┼───────────┐
-          ▼           ▼           ▼
-  ┌──────────────┐ ┌──────────┐ ┌──────────────┐
-  │current_time  │ │web_search│ │  save_note   │
-  │   _tool.py   │ │ _tool.py │ │   _tool.py   │
-  │              │ │          │ │              │
-  │ stdlib only  │ │  httpx   │ │  DB / stub   │
-  └──────────────┘ └──────────┘ └──────────────┘
+```python
+{
+    "tool_name": str,
+    "status": "success" | "error" | "blocked" | "requires_confirmation",
+    "result": str,
+    "started_at": str,
+    "completed_at": str,
+    "duration_ms": int,
+    "execution_id": str | None,
+    "domain": str | None,
+    "error_type": str | None,
+}
 ```
 
 ---
 
-## Adding a new tool (checklist)
+## FastAPI Integration Surface
 
-If the hackathon task requires a new tool, follow this order:
+The tools layer is now exposed through `app/main.py`.
 
-- [ ] Add a new Pydantic schema in `tool_schemas.py`
-- [ ] Create a new file `your_tool_name_tool.py` with `your_tool()` and `execute_your_tool()`
-- [ ] Register it in `tool_registry.py` — both `TOOL_REGISTRY` and `AVAILABLE_TOOLS`
-- [ ] Test it by calling `execute_tool_call("your_tool", {...})` directly
-- [ ] Tell Alina — she may want to add tool-calling hints to the system prompt
+Current endpoints:
 
----
+- `GET /health`
+- `GET /domains`
+- `GET /tool-types`
+- `GET /guardrails-config`
+- `POST /execute-tool`
 
+Why this matters:
 
-## Diagram: tool execution flow
-
-The diagram below shows one tool call from start to finish — from the agent's decision to the final result.
-
-![Tool Execution Flow](./diagrams/tool_execution_flow.svg)
-
-
-## Dependencies
-
-```
-requirements.txt entries needed for this layer:
-  pydantic>=2.0
-  httpx>=0.27        # for web_search_tool
-  fastapi            # already in agent-service
-```
-
-No LangGraph, no LangChain needed in this folder.
+- Stas API can health-check the Python service
+- frontend can load domains and tool metadata without hardcoding
+- the team can debug tools before the agent graph is ready
 
 ---
 
-### `test_tools.py` (local test runner)
+## Runtime Safety Guarantees
 
-**What it is:** A standalone script to verify that all tools work correctly
-without needing the full FastAPI server, database, or Alina's agent.
+Current guarantees:
 
-**Status:** ✅ All 3 tests passing as of 2026-05-21
+- wrong domain tool calls are blocked
+- excessive tool-loop steps are blocked
+- unsafe HTTP destinations are blocked
+- disallowed HTTP methods are blocked
+- invalid input payloads are caught by Pydantic
+- unexpected runtime failures return safe error objects
+- sensitive fields like `password`, `token`, `api_key` are redacted in logs
 
-**How to run:**
+This is the main runtime principle:
+
+> prompts suggest behavior, code enforces behavior
+
+---
+
+## How It Connects to Alina's Agent Layer
+
+Alina should use two tool-facing APIs from this layer:
+
+```python
+from tools.tool_registry import get_available_tools
+from services.tool_execution_service import execute_tool_call
+```
+
+Expected flow:
+
+1. Router selects a domain.
+2. Domain graph asks `get_available_tools(domain=...)`.
+3. LLM sees only shared tools + that domain's tools.
+4. When the LLM requests a tool, Alina calls:
+
+```python
+await execute_tool_call(
+    tool_name=tool_name,
+    args=args,
+    execution_id=execution_id,
+    domain=domain,
+    step_count=step_count,
+)
+```
+
+Required from Alina:
+
+- always pass `domain`
+- always pass `step_count`
+
+Without those two values, runtime scoping and ceilings are weaker.
+
+---
+
+## Placeholders and Future Work
+
+These files exist but are not implemented yet:
+
+- `database_query_tool.py`
+- `industry_presets.py`
+- `website_analyzer_tool.py`
+
+They are intentionally placeholders and should not be treated as stable runtime capabilities yet.
+
+---
+
+## Local Verification
+
+`test_tools.py` is the local runtime verification script.
+
+How to run:
+
 ```bash
 cd apps/agent-service
 python3 -m app.test_tools
 ```
 
-**Expected output:**
-```
-✅ current_time: 2026-05-21T12:35:24+03:00
-✅ unknown tool: Error: tool 'fake_tool' is not available. Available tools: ['get_current_time', 'search_web', 'save_note']
-✅ invalid args: Error: invalid arguments for tool 'save_note'. Details: [...]
-```
+Current test scope covers:
 
-**What each test verifies:**
+- shared tools
+- domain tools
+- domain scoping failures
+- HTTP guardrail blocks
+- step ceiling blocks
+- sensitive-arg redaction path
 
-| Test | Input | Expected result | Status |
-|---|---|---|---|
-| `get_current_time` | `{"timezone": "Europe/Kyiv"}` | Current datetime with +03:00 offset | ✅ |
-| `fake_tool` | `{}` | Safe error string with list of available tools | ✅ |
-| `save_note` without args | `{}` | Pydantic catches missing `session_id` and `content` | ✅ |
+Current expected status:
 
-**Important:** This file is for local testing only. Do not import it anywhere in production code.
+- all assertions passing
 
 ---
 
-## ⚠️ Import path note (read before touching tool_execution_service.py)
+## Adding a New Tool
 
-Current import in `services/tool_execution_service.py` line 4:
-```python
-from tools.tool_registry import get_tool_registry
-```
+When adding a new tool, follow this order:
 
-This works when running tests via `python3 -m app.test_tools` from `agent-service/`.
+1. Add schema to `tool_schemas.py`
+2. Create `your_tool_name_tool.py`
+3. Register it in `tool_registry.py`
+4. Add it to the correct domain allowlist in `tool_guardrails.py`
+5. Add or update tests in `test_tools.py`
+6. Tell Alina if the new tool changes prompt/tool-routing behavior
 
-When Stas Data connects `main.py`, the import may need to change depending on how he launches uvicorn. **Ask Stas this exact question before changing anything:**
+If the tool is domain-specific, add it in both places:
 
-> "Звідки ти запускаєш uvicorn — з `agent-service/` чи з `agent-service/app/`?"
+- registry/domain metadata
+- domain allowlist
 
-**If he runs from `agent-service/` (standard):**
-```bash
-cd apps/agent-service
-uvicorn app.main:app
-```
-→ change line 4 to:
-```python
-from app.tools.tool_registry import get_tool_registry
-```
+If you skip the allowlist step, the runtime contract is incomplete.
 
-**If he runs from `agent-service/app/`:**
-```bash
-cd apps/agent-service/app
-uvicorn main:app
-```
-→ keep line 4 as is:
-```python
-from tools.tool_registry import get_tool_registry
-```
+---
 
-## Boundary rules (non-negotiable)
+## Boundary Rules
+
+These rules are non-negotiable:
 
 | Rule | Why |
 |---|---|
-| Alina calls tools, Sofia defines them | Clean separation of concerns |
-| `execute_tool_call()` never raises | Agent must always get a string back |
-| Each tool has exactly one Pydantic schema | Validation is always explicit |
-| `save_note_tool` uses stub until DB is ready | No blocking on other people's work |
-| No direct DB calls except in `save_note_tool` | Tools should be stateless where possible |
+| Alina decides when a tool is called | Keeps orchestration separate from execution |
+| Sofia defines which tools exist and how they run | Keeps tool behavior centralized |
+| Runtime guardrails live in code, not prompts | Safety must be enforceable |
+| Schemas live only in `tool_schemas.py` | Validation stays consistent |
+| `execute_tool_call()` never raises to the caller | Agent runtime always gets a safe result object |
+| Domain tools must be both visible and permitted | Visibility alone is not security |
