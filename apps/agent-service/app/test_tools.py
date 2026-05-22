@@ -71,10 +71,10 @@ async def main():
     _print_result("check_price (ecommerce) → success", r)
     assert r["status"] == "success"
 
-    # Domain scoping: hotel_search is NOT available in ecommerce
+    # Domain scoping: hotel_search NOT in ecommerce
     r = await execute_tool_call("hotel_search", {"city": "Київ", "check_in": "2026-06-15", "check_out": "2026-06-18"}, execution_id="t-010", domain="ecommerce")
-    _print_result("hotel_search in ecommerce → unknown_tool (scoped out)", r)
-    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_UNKNOWN_TOOL
+    _print_result("hotel_search in ecommerce → blocked (scoped out)", r)
+    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_BLOCKED
 
     # ======================================================================
     print("\n" + "=" * 60)
@@ -119,13 +119,32 @@ async def main():
     _print_result("get_current_time (general) → success", r)
     assert r["status"] == "success" and r["domain"] == "general"
 
-    # product_search is NOT available in general
     r = await execute_tool_call("product_search", {"query": "тест"}, execution_id="t-018", domain="general")
-    _print_result("product_search in general → unknown_tool (scoped out)", r)
-    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_UNKNOWN_TOOL
+    _print_result("product_search in general → blocked (scoped out)", r)
+    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_BLOCKED
+
+    # ======================================================================
+    print("\n" + "=" * 60)
+    print("SAFETY GUARDRAILS")
+    print("=" * 60)
+
+    # Step limit — agent has already used 10 steps
+    r = await execute_tool_call("search_web", {"query": "тест"}, execution_id="t-019", domain="ecommerce", step_count=8)
+    _print_result("step_count=8 in ecommerce (limit=8) → blocked", r)
+    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_BLOCKED
+
+    # Step limit — general domain has limit=6
+    r = await execute_tool_call("get_current_time", {}, execution_id="t-020", domain="general", step_count=6)
+    _print_result("step_count=6 in general (limit=6) → blocked", r)
+    assert r["status"] == "error" and r["error_type"] == ERROR_TYPE_BLOCKED
+
+    # Sensitive args — should be redacted in logs (execution still proceeds)
+    r = await execute_tool_call("save_note", {"session_id": "abc", "content": "test", "api_key": "SECRET123"}, execution_id="t-021")
+    _print_result("save_note with api_key in args → success (key redacted in logs)", r)
+    assert r["status"] == "success"  # execution proceeds, key just redacted in logs
 
     print("\n" + "=" * 60)
-    print("🏁 All 18 assertions passed.")
+    print("🏁 All 21 assertions passed.")
     print("=" * 60)
 
 
