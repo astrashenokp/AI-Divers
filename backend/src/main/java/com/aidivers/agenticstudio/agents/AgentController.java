@@ -101,10 +101,12 @@ public class AgentController {
                 .id(tool.getId())
                 .agentId(agentId)
                 .type(tool.getType().getId())
+                .category(tool.getType().getCategory())
                 .name(tool.getName())
                 .config(tool.getConfigJson() == null ? Collections.emptyMap() : tool.getConfigJson())
                 .enabled(tool.isEnabled())
                 .createdAt(tool.getCreatedAt())
+                .updatedAt(tool.getCreatedAt())
                 .build();
     }
 
