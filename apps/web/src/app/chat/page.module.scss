@@ -1,0 +1,50 @@
+.composer {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 250, 240, 0.76);
+}
+
+.composerLabel {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.composerBox {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 18px;
+  color: var(--muted-strong);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.sendButton {
+  min-width: 46px;
+  height: 46px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent-strong);
+  border-radius: 14px;
+  color: #ffffff;
+  background: var(--accent);
+}
+
+@media (max-width: 620px) {
+  .composerBox {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sendButton {
+    align-self: flex-end;
+  }
+}
