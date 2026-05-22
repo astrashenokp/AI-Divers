@@ -1,0 +1,75 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.shell {
+  width: min(920px, 100%);
+  display: grid;
+  gap: 20px;
+}
+
+.backLink {
+  width: fit-content;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--muted-strong);
+  background: rgba(255, 255, 255, 0.72);
+  font-weight: 800;
+}
+
+.emptyState {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  padding: 42px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+
+  h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  p {
+    max-width: 520px;
+    color: var(--muted-strong);
+    font-size: 18px;
+    line-height: 1.55;
+  }
+}
+
+.iconWrap {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  color: #ffffff;
+  background: var(--accent);
+}
+
+@media (max-width: 620px) {
+  .page {
+    padding: 18px;
+  }
+
+  .emptyState {
+    min-height: 360px;
+    padding: 28px;
+  }
+}
