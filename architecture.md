@@ -433,51 +433,152 @@ Frontend may show:
 
 Frontend must not:
 
-- execute `web_search`, `http_request`, or `database_query` directly from the browser
+- execute `search_web`, `http_request`, `save_note`, or any other tool directly from the browser
 - send API keys or database credentials to the browser
 - send `LLM_API_KEY` or any LLM provider secret to the browser
 - call Claude, OpenAI, or another LLM provider directly
 - call `http://localhost:8001` or any Python agent-service route
 - invent tool results when streaming data is not available
 
-Backend must expose tool templates in a frontend-friendly shape:
+Backend must expose tool templates in a frontend-friendly shape.
+
+The backend response must use the same domains and snake_case tool keys as `apps/agent-service`.
+Do not expose old enum values such as `WEB_SEARCH`, `HTTP_REQUEST`, or `DATABASE_QUERY` as the public tool contract.
 
 ```json
 {
   "categories": [
     {
       "id": "education",
-      "label": "Освіта",
-      "description": "Tools for learning assistants, course search, tutoring, and knowledge lookup",
+      "label": "Education",
+      "description": "Tools for learning assistants, course search, course details, and student progress",
       "tools": [
         {
-          "type": "web_search",
-          "name": "Education Web Search",
-          "description": "Searches public learning resources",
+          "type": "course_search",
+          "name": "Course Search",
+          "description": "Searches learning courses by topic, skill, or level",
+          "category": "education",
           "requiresHumanConfirmation": false,
-          "configSchema": {
-            "allowedDomains": "string[]"
-          }
+          "configSchema": {}
+        },
+        {
+          "type": "course_info",
+          "name": "Course Info",
+          "description": "Returns details for a specific course",
+          "category": "education",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "save_progress",
+          "name": "Save Progress",
+          "description": "Saves student lesson progress",
+          "category": "education",
+          "requiresHumanConfirmation": true,
+          "configSchema": {}
         }
       ]
     },
     {
       "id": "tourism",
-      "label": "Туризм",
+      "label": "Tourism",
       "description": "Tools for travel research, destinations, routes, and recommendations",
-      "tools": []
+      "tools": [
+        {
+          "type": "hotel_search",
+          "name": "Hotel Search",
+          "description": "Searches hotels by city, dates, and guest count",
+          "category": "tourism",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "itinerary_plan",
+          "name": "Itinerary Plan",
+          "description": "Builds a travel plan for a destination",
+          "category": "tourism",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "get_weather",
+          "name": "Get Weather",
+          "description": "Returns a weather forecast for a city",
+          "category": "tourism",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        }
+      ]
     },
     {
       "id": "ecommerce",
-      "label": "E-commerce (Продажі)",
+      "label": "E-commerce",
       "description": "Tools for product lookup, order status, sales workflows, and customer requests",
-      "tools": []
+      "tools": [
+        {
+          "type": "product_search",
+          "name": "Product Search",
+          "description": "Searches products by name, keyword, or category",
+          "category": "ecommerce",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "order_status",
+          "name": "Order Status",
+          "description": "Checks order status and tracking information",
+          "category": "ecommerce",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "check_price",
+          "name": "Check Price",
+          "description": "Checks price and availability for a product",
+          "category": "ecommerce",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        }
+      ]
     },
     {
-      "id": "other",
-      "label": "Інше",
-      "description": "General tools for tasks that do not fit the main categories yet",
-      "tools": []
+      "id": "general",
+      "label": "General",
+      "description": "Shared tools for general assistant tasks",
+      "tools": [
+        {
+          "type": "get_current_time",
+          "name": "Get Current Time",
+          "description": "Returns the current date and time for a timezone",
+          "category": "general",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "search_web",
+          "name": "Search Web",
+          "description": "Searches the web for current information",
+          "category": "general",
+          "requiresHumanConfirmation": false,
+          "configSchema": {}
+        },
+        {
+          "type": "save_note",
+          "name": "Save Note",
+          "description": "Saves an important note for the current session",
+          "category": "general",
+          "requiresHumanConfirmation": true,
+          "configSchema": {}
+        },
+        {
+          "type": "http_request",
+          "name": "HTTP Request",
+          "description": "Calls a public external API with runtime guardrails",
+          "category": "general",
+          "requiresHumanConfirmation": true,
+          "configSchema": {}
+        }
+      ]
     }
   ]
 }
@@ -487,12 +588,12 @@ Frontend attaches a tool to an agent through Spring Boot:
 
 ```json
 {
-  "type": "web_search",
-  "name": "Education Web Search",
-  "category": "education",
+  "type": "get_current_time",
+  "name": "Get Current Time",
+  "category": "general",
   "enabled": true,
   "config": {
-    "allowedDomains": ["wikipedia.org", "coursera.org"]
+    "timezone": "Europe/Kyiv"
   }
 }
 ```
@@ -503,25 +604,29 @@ Internal Spring Boot -> Python execution request:
 
 ```json
 {
+  "executionId": "execution-123",
   "agent": {
     "id": "agent-123",
-    "name": "Education Assistant",
-    "systemPrompt": "You help students understand topics clearly.",
+    "name": "General Assistant",
+    "systemPrompt": "You help users clearly and safely.",
     "modelProvider": "anthropic",
     "modelName": "claude-3-5-haiku-latest"
   },
+  "domain": "general",
   "guardrails": {
     "maxSteps": 6,
     "forbiddenTopics": [],
-    "requireHumanConfirmationForTools": ["database_query"]
+    "requireHumanConfirmationForTools": ["save_note", "http_request"]
   },
   "tools": [
     {
       "id": "agent-tool-1",
-      "type": "web_search",
-      "name": "Education Web Search",
+      "type": "search_web",
+      "name": "Search Web",
+      "category": "general",
+      "enabled": true,
       "config": {
-        "allowedDomains": ["wikipedia.org", "coursera.org"]
+        "max_results": 3
       }
     }
   ],
@@ -531,10 +636,340 @@ Internal Spring Boot -> Python execution request:
   },
   "message": {
     "role": "user",
-    "content": "Поясни, що таке LangGraph"
+    "content": "Explain how agent tools work"
   }
 }
 ```
+
+### Backend -> AI Runtime Implementation Instructions
+
+This subsection is for the Spring Boot backend team. It defines exactly how the backend connects frontend requests to the Python AI runtime.
+
+Backend owns the integration bridge:
+
+```text
+Frontend `/api/v1/*` request
+   -> Spring Boot controller
+   -> Spring Boot service loads persisted data
+   -> Spring Boot client calls Python `agent-service`
+   -> Python streams runtime events
+   -> Spring Boot persists and relays frontend-safe SSE events
+   -> Frontend renders chat + Live Tracking
+```
+
+Backend must not ask the frontend to send the full agent runtime context. The frontend sends only user-facing input. Backend loads the rest from persistence.
+
+#### Required Spring Boot Configuration
+
+Backend must use `AGENT_SERVICE_URL` for Python calls:
+
+```yaml
+agent-service:
+  url: ${AGENT_SERVICE_URL:http://localhost:8001}
+```
+
+Backend must not define or require:
+
+```text
+LLM_API_KEY
+ANTHROPIC_API_KEY
+OPENAI_API_KEY
+NEXT_PUBLIC_LLM_API_KEY
+```
+
+LLM provider secrets belong only to `apps/agent-service`.
+
+#### Public Frontend Endpoint
+
+Frontend calls Spring Boot:
+
+```text
+POST /api/v1/agents/{agentId}/execute/stream
+Accept: text/event-stream
+Content-Type: application/json
+```
+
+Frontend request body:
+
+```json
+{
+  "sessionId": "optional-session-uuid",
+  "message": "User message",
+  "metadata": {
+    "domain": "general"
+  }
+}
+```
+
+Rules:
+
+- `sessionId` belongs in the JSON body, not only as a query parameter.
+- `message` is the raw user message from the chat composer.
+- `metadata.domain` may be provided by the frontend when the user entered chat from a category such as `/chat?domain=general`.
+- if `metadata.domain` is missing, backend may use a saved agent domain or default to `general` for MVP.
+
+#### Backend Data Loading Before Python Call
+
+When `POST /api/v1/agents/{agentId}/execute/stream` is called, backend must:
+
+1. load the agent from `agents`
+2. load or create the chat session in `chat_sessions`
+3. save the user message in `messages`
+4. load enabled tools from `agent_tools`
+5. load guardrails from `guardrails`
+6. create an `agent_executions` row with status `RUNNING`
+7. build the internal Python request
+8. call Python `POST /internal/v1/agent/stream`
+9. relay SSE events to the frontend
+10. persist execution steps and tool call history as events arrive
+11. save the final assistant message when execution completes
+12. mark the execution `COMPLETED`, `FAILED`, or `BLOCKED`
+
+Backend must not simply forward the frontend request body to Python. Backend must enrich it with trusted persisted context.
+
+#### Internal Python Endpoint
+
+Backend calls Python:
+
+```text
+POST {AGENT_SERVICE_URL}/internal/v1/agent/stream
+Accept: text/event-stream
+Content-Type: application/json
+```
+
+The Python team must expose this endpoint. If it does not exist yet, backend should keep the client code ready but cannot complete end-to-end execution.
+
+Internal request shape:
+
+```json
+{
+  "executionId": "execution-uuid",
+  "agent": {
+    "id": "agent-uuid",
+    "name": "General Assistant",
+    "description": "Answers general user requests",
+    "systemPrompt": "You help users clearly and safely.",
+    "modelProvider": "anthropic",
+    "modelName": "claude-3-5-haiku-latest"
+  },
+  "domain": "general",
+  "tools": [
+    {
+      "id": "agent-tool-uuid",
+      "type": "get_current_time",
+      "name": "Get Current Time",
+      "category": "general",
+      "enabled": true,
+      "config": {
+        "timezone": "Europe/Kyiv"
+      }
+    }
+  ],
+  "guardrails": {
+    "maxSteps": 6,
+    "forbiddenTopics": [],
+    "requireHumanConfirmationForTools": ["save_note", "http_request"]
+  },
+  "session": {
+    "id": "session-uuid",
+    "source": "STUDIO"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "User message"
+    }
+  ]
+}
+```
+
+Notes:
+
+- `tools[].type` must be snake_case and match `agent-service`.
+- `tools[].config` must be an object, not a stringified JSON blob.
+- backend may include previous session messages if needed for context.
+- backend should send only frontend-safe and redacted tool config to Python.
+- backend must not send database credentials, API keys, or private secrets to the browser.
+
+#### Tool Storage Rules
+
+Backend database may store `agent_tools.type` as `VARCHAR`.
+
+Recommended Java mapping:
+
+```java
+private String type;
+```
+
+Avoid using a narrow `ToolType` enum for persisted attached tools because tools are owned by `agent-service` and may change. If a Java enum is used, it must include every current tool key:
+
+```text
+get_current_time
+search_web
+save_note
+http_request
+course_search
+course_info
+save_progress
+hotel_search
+itinerary_plan
+get_weather
+product_search
+order_status
+check_price
+```
+
+Backend attach-tool request should accept:
+
+```json
+{
+  "type": "search_web",
+  "category": "general",
+  "name": "Search Web",
+  "enabled": true,
+  "config": {
+    "max_results": 3
+  }
+}
+```
+
+Backend attach-tool response should return the same shape plus ids and timestamps:
+
+```json
+{
+  "id": "agent-tool-uuid",
+  "agentId": "agent-uuid",
+  "type": "search_web",
+  "category": "general",
+  "name": "Search Web",
+  "enabled": true,
+  "config": {
+    "max_results": 3
+  },
+  "createdAt": "2026-05-22T12:00:00Z",
+  "updatedAt": "2026-05-22T12:00:00Z"
+}
+```
+
+Frontend should not have to send or parse `configJson` strings.
+
+#### Backend SSE Relay Rules
+
+Backend should relay these event names to the browser:
+
+```text
+execution_started
+reasoning_step
+tool_call_started
+tool_call_finished
+guardrail_blocked
+human_confirmation_required
+message_delta
+execution_completed
+execution_failed
+```
+
+Every frontend-safe event should use this general payload shape:
+
+```json
+{
+  "executionId": "execution-uuid",
+  "stepIndex": 2,
+  "toolName": "search_web",
+  "summary": "Searching the web for current information",
+  "status": "running",
+  "timestamp": "2026-05-22T12:00:00Z",
+  "input": {},
+  "output": {}
+}
+```
+
+Status values sent to frontend should be lowercase:
+
+```text
+running
+completed
+failed
+blocked
+waiting_for_human
+```
+
+For assistant streaming:
+
+```json
+{
+  "delta": "partial assistant text"
+}
+```
+
+or:
+
+```json
+{
+  "output": {
+    "delta": "partial assistant text"
+  }
+}
+```
+
+For final answer:
+
+```json
+{
+  "finalMessage": "Final assistant answer"
+}
+```
+
+or:
+
+```json
+{
+  "output": {
+    "finalMessage": "Final assistant answer"
+  }
+}
+```
+
+The current frontend stream parser supports both direct and `output.*` variants.
+
+#### Persistence During Streaming
+
+Backend should persist:
+
+- `agent_executions`: one row per run
+- `agent_execution_steps`: one row for reasoning/tool/guardrail/message events where useful
+- `tool_call_history`: one row per tool call
+- `messages`: user message before execution and final assistant message after completion
+
+Suggested mapping:
+
+```text
+execution_started -> create or update agent_executions
+reasoning_step -> agent_execution_steps
+tool_call_started -> agent_execution_steps + tool_call_history RUNNING
+tool_call_finished -> update tool_call_history COMPLETED + agent_execution_steps
+guardrail_blocked -> update execution BLOCKED + agent_execution_steps
+human_confirmation_required -> agent_execution_steps
+message_delta -> relay only; persist final message on completion
+execution_completed -> update execution COMPLETED + save assistant message
+execution_failed -> update execution FAILED
+```
+
+#### Backend Acceptance Checklist
+
+Backend is ready for Polina/frontend integration when:
+
+- `GET /api/v1/tool-types` returns `{ "categories": [...] }`
+- tool categories are exactly `education`, `tourism`, `ecommerce`, and `general`
+- tool keys are snake_case and match `apps/agent-service`
+- `POST /api/v1/agents/{agentId}/tools` accepts and returns `config` as an object
+- `POST /api/v1/agents/{agentId}/sessions` works with frontend defaults or defaults missing fields to `STUDIO` and `"New chat"`
+- `POST /api/v1/agents/{agentId}/execute/stream` accepts `{ "sessionId", "message", "metadata" }`
+- backend loads agent, tools, guardrails, session, and previous messages itself
+- backend calls Python only through `AGENT_SERVICE_URL`
+- backend does not require or expose `LLM_API_KEY`
+- backend relays SSE events with the shared event names
+- backend persists execution, steps, tool calls, and final messages
 
 Python agent-service must emit events using the shared SSE event names. Event payloads must be structured and frontend-safe:
 
@@ -543,9 +978,9 @@ Python agent-service must emit events using the shared SSE event names. Event pa
   "event": "tool_call_started",
   "executionId": "execution-123",
   "stepIndex": 2,
-  "toolName": "web_search",
-  "summary": "Searching public learning resources",
-  "status": "RUNNING",
+  "toolName": "search_web",
+  "summary": "Searching the web for current information",
+  "status": "running",
   "timestamp": "2026-05-22T12:00:00Z"
 }
 ```
