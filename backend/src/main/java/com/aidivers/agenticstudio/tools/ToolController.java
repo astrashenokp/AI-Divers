@@ -176,7 +176,8 @@ public class ToolController {
                                      @Valid @RequestBody AgentToolRequest request) {
         try {
             AgentTool tool = new AgentTool();
-            tool.setType(ToolType.fromId(request.getType()));
+            ToolType type = ToolType.fromId(request.getType());
+            tool.setType(type);
             tool.setName(request.getName());
             tool.setEnabled(request.isEnabled());
 
@@ -201,6 +202,7 @@ public class ToolController {
                     .id(savedTool.getId())
                     .agentId(savedTool.getAgent().getId())
                     .type(savedTool.getType().getId())
+                    .category(resolveCategory(request.getCategory(), savedTool.getType()))
                     .name(savedTool.getName())
                     .config(savedTool.getConfigJson() == null ? Map.of() : savedTool.getConfigJson())
                     .configJson(responseConfig)
@@ -213,6 +215,13 @@ public class ToolController {
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Помилка формату configJson. Очікується валідний JSON.");
         }
+    }
+
+    private String resolveCategory(String requestedCategory, ToolType type) {
+        if (requestedCategory != null && !requestedCategory.isBlank()) {
+            return requestedCategory;
+        }
+        return type.getCategory();
     }
 
     private ToolCategoryResponse category(String id, String label, String description, List<ToolTemplateResponse> tools) {

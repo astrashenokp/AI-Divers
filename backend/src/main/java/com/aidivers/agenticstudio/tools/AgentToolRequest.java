@@ -13,6 +13,8 @@ public class AgentToolRequest {
     @NotBlank
     private String name;
 
+    private String category;
+
     private String configJson;
 
     private Map<String, Object> config;

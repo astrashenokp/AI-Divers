@@ -36,6 +36,16 @@ public enum ToolType {
         return id;
     }
 
+    public String getCategory() {
+        return switch (this) {
+            case COURSE_SEARCH, COURSE_INFO, SAVE_PROGRESS -> "education";
+            case HOTEL_SEARCH, ITINERARY_PLAN, GET_WEATHER -> "tourism";
+            case PRODUCT_SEARCH, ORDER_STATUS, CHECK_PRICE -> "ecommerce";
+            case GET_CURRENT_TIME, WEB_SEARCH, SAVE_NOTE, HTTP_REQUEST -> "general";
+            case DATABASE_QUERY -> "general";
+        };
+    }
+
     @JsonCreator
     public static ToolType fromId(String value) {
         if (value == null || value.isBlank()) {

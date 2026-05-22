@@ -11,6 +11,7 @@ public class AgentToolResponse {
     private UUID id;
     private UUID agentId;
     private String type;
+    private String category;
     private String name;
     private Map<String, Object> config;
     private String configJson;
