@@ -8,6 +8,9 @@ export const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK_API !== "false";
 export const API_V1_PREFIX = "/api/v1";
 
 export const HEALTH_PATH = `${API_V1_PREFIX}/health`;
+export const AUTH_LOGIN_PATH = `${API_V1_PREFIX}/auth/login`;
+export const AUTH_REGISTER_PATH = `${API_V1_PREFIX}/auth/register`;
+export const AUTH_LOGOUT_PATH = `${API_V1_PREFIX}/auth/logout`;
 export const AGENTS_PATH = `${API_V1_PREFIX}/agents`;
 export const DOMAINS_PATH = `${API_V1_PREFIX}/domains`;
 export const GUARDRAILS_CONFIG_PATH = `${API_V1_PREFIX}/guardrails-config`;

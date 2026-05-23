@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./constants";
+import { getAuthorizationHeader } from "./authSession";
 import type { ApiErrorShape, JsonObject, JsonValue } from "./types";
 
 export type HttpMethod = "GET" | "POST" | "PUT";
@@ -107,6 +108,7 @@ export async function apiRequest<TResponse>(
     method,
     headers: {
       Accept: "application/json",
+      ...getAuthorizationHeader(),
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
