@@ -1,7 +1,10 @@
 package com.aidivers.agenticstudio.guardrails;
 
+import com.aidivers.agenticstudio.agents.AgentService;
+import com.aidivers.agenticstudio.auth.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -12,16 +15,25 @@ import java.util.UUID;
 public class GuardrailController {
 
     private final GuardrailService guardrailService;
+    private final AgentService agentService;
 
     @PutMapping("/{agentId}/guardrails")
-    public GuardrailResponse updateGuardrails(@PathVariable UUID agentId,
-                                              @Valid @RequestBody GuardrailRequest request) {
+    public GuardrailResponse updateGuardrails(
+            @PathVariable UUID agentId,
+            @Valid @RequestBody GuardrailRequest request,
+            @AuthenticationPrincipal User currentUser) {
+
+        // ownership validation
+        agentService.getByIdForOwner(agentId, currentUser);
+
         Guardrail guardrail = guardrailService.findByAgentId(agentId)
                 .orElse(new Guardrail());
 
         guardrail.setMaxSteps(request.getMaxSteps());
         guardrail.setForbiddenTopicsJson(request.getForbiddenTopics());
-        guardrail.setHumanConfirmationToolsJson(request.getRequireHumanConfirmationForTools());
+        guardrail.setHumanConfirmationToolsJson(
+                request.getRequireHumanConfirmationForTools()
+        );
 
         Guardrail saved = guardrailService.save(agentId, guardrail);
 
