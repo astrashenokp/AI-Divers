@@ -1,5 +1,6 @@
 package com.aidivers.agenticstudio.agents;
 
+import com.aidivers.agenticstudio.auth.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,14 @@ public class AgentService {
     }
 
     @Transactional(readOnly = true)
-    public List<Agent> findAll() {
-        return agentRepository.findAll();
+    public List<Agent> findAllByOwner(User owner) {
+        return agentRepository.findByOwnerId(owner.getId());
+    }
+
+    @Transactional(readOnly = true)
+    public Agent getByIdForOwner(UUID id, User owner) {
+        return agentRepository.findByIdAndOwnerId(id, owner.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Agent not found: " + id));
     }
 
     @Transactional(readOnly = true)
