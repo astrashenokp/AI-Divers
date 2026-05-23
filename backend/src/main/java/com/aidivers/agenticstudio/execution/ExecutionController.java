@@ -22,6 +22,7 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RestController
@@ -64,17 +65,22 @@ public class ExecutionController {
         AgentExecution execution = executionService.start(agentId, session.getId());
 
         InternalAgentExecutionRequest pythonRequest = buildInternalRequest(execution.getId(), agent, session, request);
+        AtomicBoolean finalMessageSaved = new AtomicBoolean(false);
 
         return agentServiceClient.streamAgentExecution(pythonRequest)
 
-                .doOnNext(event -> processSseEvent(event, execution.getId(), session.getId(), agentId))
+                .doOnNext(event -> processSseEvent(event, execution.getId(), session.getId(), agentId, finalMessageSaved))
 
                 .doOnComplete(() -> completeIfRunning(execution.getId()))
                 .doOnError(error -> executionService.fail(execution.getId(), error.getMessage()));
     }
 
 
-    private void processSseEvent(ServerSentEvent<String> event, UUID executionId, UUID sessionId, UUID agentId) {
+    private void processSseEvent(ServerSentEvent<String> event,
+                                 UUID executionId,
+                                 UUID sessionId,
+                                 UUID agentId,
+                                 AtomicBoolean finalMessageSaved) {
         if (event.data() == null) {
             return;
         }
@@ -135,7 +141,7 @@ public class ExecutionController {
 
                 case "execution_completed":
                     String finalMessage = extractFinalMessage(data);
-                    if (finalMessage != null && !finalMessage.isBlank()) {
+                    if (finalMessage != null && !finalMessage.isBlank() && finalMessageSaved.compareAndSet(false, true)) {
                         messageService.save(sessionId, MessageRole.ASSISTANT, finalMessage);
                     }
                     saveStepSafely(executionId, stepIndex, ExecutionStepType.EXECUTION_COMPLETED, summary, null, data);
