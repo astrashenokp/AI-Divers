@@ -21,6 +21,10 @@ public class Agent {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private com.aidivers.agenticstudio.auth.User owner;
+
     @Column(nullable = false)
     private String name;
 
