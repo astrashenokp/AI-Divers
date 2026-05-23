@@ -286,7 +286,7 @@ function ChatPageContent() {
     [searchParams],
   );
   const runChatMessage = useCallback(
-    async (message: string) => {
+    async (message: string, options: { forceMock?: boolean } = {}) => {
       if (!selectedAgent) {
         setDraftMessage(message);
         return;
@@ -309,6 +309,7 @@ function ChatPageContent() {
       await startExecution(message, {
         sessionId: activeSession.id,
         metadata,
+        forceMock: options.forceMock,
       });
     },
     [selectedAgent, session, startExecution, startSession, toolContext],
@@ -360,7 +361,9 @@ function ChatPageContent() {
         setDraftMessage("Повтори останній тест агента.");
       },
       run_mock_mode: () => {
-        void runChatMessage("Запусти демо-приклад у mock режимі.");
+        void runChatMessage("Запусти демо-приклад у демо-режимі.", {
+          forceMock: true,
+        });
       },
       insert_template: () => {
         setDraftMessage(

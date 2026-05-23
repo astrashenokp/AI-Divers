@@ -38,6 +38,7 @@ const toApiError = (error: unknown): ApiErrorShape => ({
 export interface StartExecutionOptions {
   sessionId?: string;
   metadata?: JsonObject;
+  forceMock?: boolean;
 }
 
 export const useAgentExecutionStream = (agentId?: string, sessionId?: string) => {
@@ -116,7 +117,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
       };
 
       try {
-        if (USE_MOCK_API) {
+        if (USE_MOCK_API || options.forceMock) {
           await mockApi.runMockAgentExecutionStream(
             agentId,
             message,

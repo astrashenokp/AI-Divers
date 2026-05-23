@@ -323,13 +323,13 @@ export const mockAgentTools: AgentTool[] = [
 export const mockAgents: Agent[] = [
   {
     id: "agent-general-assistant",
-    name: "General Assistant",
+    name: "Загальний асистент",
     description:
-      "Helps users answer practical questions with shared tools such as time, web search, notes, and guarded HTTP requests.",
+      "Допомагає відповідати на практичні запити за допомогою спільних tools: часу, web search, нотаток і безпечних HTTP-запитів.",
     systemPrompt:
-      "You are a helpful general assistant. Use available tools only when they improve the answer, and explain tool results clearly.",
-    modelProvider: "mock",
-    modelName: "mock-general-assistant",
+      "Ти корисний загальний асистент. Використовуй доступні tools тільки тоді, коли вони покращують відповідь, і пояснюй результати tools чітко.",
+    modelProvider: "demo",
+    modelName: "demo-general-assistant",
     status: "active",
     tools: mockAgentTools,
     guardrails: mockGuardrails,
@@ -339,13 +339,13 @@ export const mockAgents: Agent[] = [
   },
   {
     id: "agent-education-assistant",
-    name: "Education Assistant",
+    name: "Освітній асистент",
     description:
-      "Helps students find courses, understand course details, and track learning progress.",
+      "Допомагає студентам знаходити курси, розуміти деталі навчання і відстежувати прогрес.",
     systemPrompt:
-      "You are an education assistant. Help users find suitable courses and explain learning options clearly.",
-    modelProvider: "mock",
-    modelName: "mock-education-assistant",
+      "Ти освітній асистент. Допомагай користувачам знаходити відповідні курси і чітко пояснюй навчальні опції.",
+    modelProvider: "demo",
+    modelName: "demo-education-assistant",
     status: "draft",
     tools: [],
     guardrails: {
@@ -391,7 +391,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.EXECUTION_STARTED,
     stepNumber: 1,
-    summary: "Started execution for General Assistant.",
+    summary: "Запущено виконання для Загального асистента.",
     status: "running",
     timestamp: now,
   },
@@ -400,7 +400,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.REASONING_STEP,
     stepNumber: 2,
-    summary: "Deciding whether a shared tool is needed.",
+    summary: "Агент вирішує, чи потрібен спільний tool.",
     status: "running",
     timestamp: now,
   },
@@ -409,7 +409,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_STARTED,
     stepNumber: 3,
-    summary: "Calling get_current_time for the requested timezone.",
+    summary: "Виклик get_current_time для потрібного часового поясу.",
     toolName: "get_current_time",
     status: "running",
     timestamp: now,
@@ -422,7 +422,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_FINISHED,
     stepNumber: 4,
-    summary: "get_current_time completed successfully.",
+    summary: "get_current_time успішно завершився.",
     toolName: "get_current_time",
     status: "completed",
     timestamp: now,
