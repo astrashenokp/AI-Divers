@@ -1,11 +1,14 @@
 package com.aidivers.agenticstudio.tools;
 
+import com.aidivers.agenticstudio.agents.AgentService;
+import com.aidivers.agenticstudio.auth.User;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -19,6 +22,7 @@ import java.util.UUID;
 public class ToolController {
 
     private final AgentToolService agentToolService;
+    private final AgentService agentService;
     private final ObjectMapper objectMapper;
 
     @GetMapping("/tool-types")
@@ -173,29 +177,43 @@ public class ToolController {
     @PostMapping("/agents/{agentId}/tools")
     @ResponseStatus(HttpStatus.CREATED)
     public AgentToolResponse addTool(@PathVariable UUID agentId,
-                                     @Valid @RequestBody AgentToolRequest request) {
+                                     @Valid @RequestBody AgentToolRequest request,
+                                     @AuthenticationPrincipal User currentUser) {
+
+        // ownership validation
+        agentService.getByIdForOwner(agentId, currentUser);
+
         try {
             AgentTool tool = new AgentTool();
+
             ToolType type = ToolType.fromId(request.getType());
+
             tool.setType(type);
             tool.setName(request.getName());
             tool.setEnabled(request.isEnabled());
 
             if (request.getConfig() != null) {
                 tool.setConfigJson(request.getConfig());
-            } else if (request.getConfigJson() != null && !request.getConfigJson().isBlank()) {
+
+            } else if (request.getConfigJson() != null
+                    && !request.getConfigJson().isBlank()) {
+
                 Map<String, Object> configMap = objectMapper.readValue(
                         request.getConfigJson(),
                         new TypeReference<Map<String, Object>>() {}
                 );
+
                 tool.setConfigJson(configMap);
             }
 
             AgentTool savedTool = agentToolService.save(agentId, tool);
 
             String responseConfig = null;
+
             if (savedTool.getConfigJson() != null) {
-                responseConfig = objectMapper.writeValueAsString(savedTool.getConfigJson());
+                responseConfig = objectMapper.writeValueAsString(
+                        savedTool.getConfigJson()
+                );
             }
 
             return AgentToolResponse.builder()
@@ -204,7 +222,9 @@ public class ToolController {
                     .type(savedTool.getType().getId())
                     .category(resolveCategory(request.getCategory(), savedTool.getType()))
                     .name(savedTool.getName())
-                    .config(savedTool.getConfigJson() == null ? Map.of() : savedTool.getConfigJson())
+                    .config(savedTool.getConfigJson() == null
+                            ? Map.of()
+                            : savedTool.getConfigJson())
                     .configJson(responseConfig)
                     .enabled(savedTool.isEnabled())
                     .createdAt(savedTool.getCreatedAt())
@@ -212,20 +232,36 @@ public class ToolController {
                     .build();
 
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Невідомий тип інструмента: " + request.getType());
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Невідомий тип інструмента: " + request.getType()
+            );
+
         } catch (JsonProcessingException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Помилка формату configJson. Очікується валідний JSON.");
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Помилка формату configJson. Очікується валідний JSON."
+            );
         }
     }
 
     private String resolveCategory(String requestedCategory, ToolType type) {
+
         if (requestedCategory != null && !requestedCategory.isBlank()) {
             return requestedCategory;
         }
+
         return type.getCategory();
     }
 
-    private ToolCategoryResponse category(String id, String label, String description, List<ToolTemplateResponse> tools) {
+    private ToolCategoryResponse category(
+            String id,
+            String label,
+            String description,
+            List<ToolTemplateResponse> tools
+    ) {
         return ToolCategoryResponse.builder()
                 .id(id)
                 .label(label)
@@ -234,7 +270,12 @@ public class ToolController {
                 .build();
     }
 
-    private ToolTemplateResponse tool(ToolType type, String description, String category, Map<String, Object> configSchema) {
+    private ToolTemplateResponse tool(
+            ToolType type,
+            String description,
+            String category,
+            Map<String, Object> configSchema
+    ) {
         return ToolTemplateResponse.builder()
                 .type(type.getId())
                 .name(type.name)

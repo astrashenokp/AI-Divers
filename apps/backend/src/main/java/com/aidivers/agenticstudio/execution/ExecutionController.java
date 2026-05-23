@@ -2,6 +2,7 @@ package com.aidivers.agenticstudio.execution;
 
 import com.aidivers.agenticstudio.agents.Agent;
 import com.aidivers.agenticstudio.agents.AgentService;
+import com.aidivers.agenticstudio.auth.User;
 import com.aidivers.agenticstudio.guardrails.Guardrail;
 import com.aidivers.agenticstudio.guardrails.GuardrailService;
 import com.aidivers.agenticstudio.sessions.*;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
@@ -43,13 +45,14 @@ public class ExecutionController {
 
     @PostMapping(value = "/agents/{agentId}/execute/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> executeStream(@PathVariable UUID agentId,
-                                                       @RequestBody ExecuteStreamRequest request) {
+                                                       @RequestBody ExecuteStreamRequest request,
+                                                       @AuthenticationPrincipal User currentUser) {
 
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message is required");
         }
 
-        Agent agent = agentService.getById(agentId);
+        Agent agent = agentService.getByIdForOwner(agentId, currentUser);
 
         ChatSession session;
         UUID sessionId = parseSessionId(request.getSessionId());

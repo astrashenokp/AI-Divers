@@ -1,5 +1,6 @@
 package com.aidivers.agenticstudio.agents;
 
+import com.aidivers.agenticstudio.auth.User;
 import com.aidivers.agenticstudio.deployments.DeploymentSettings;
 import com.aidivers.agenticstudio.deployments.DeploymentSettingsResponse;
 import com.aidivers.agenticstudio.deployments.DeploymentSettingsService;
@@ -14,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
@@ -31,20 +33,22 @@ public class AgentController {
     private final DeploymentSettingsService deploymentSettingsService;
 
     @GetMapping
-    public List<AgentResponse> list() {
-        return agentService.findAll().stream()
+    public List<AgentResponse> list(@AuthenticationPrincipal User currentUser) {
+        return agentService.findAllByOwner(currentUser).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @PostMapping
-    public ResponseEntity<AgentResponse> create(@Valid @RequestBody AgentRequest request) {
+    public ResponseEntity<AgentResponse> create(@Valid @RequestBody AgentRequest request,
+                                                @AuthenticationPrincipal User currentUser) {
         Agent agent = Agent.builder()
                 .name(request.getName())
                 .description(request.getDescription())
                 .systemPrompt(request.getSystemPrompt())
                 .modelProvider(request.getModelProvider())
                 .modelName(request.getModelName())
+                .owner(currentUser)
                 .build();
 
         Agent saved = agentService.save(agent);
@@ -54,9 +58,10 @@ public class AgentController {
     @PutMapping("/{agentId}")
     public ResponseEntity<AgentResponse> update(
             @PathVariable UUID agentId,
-            @Valid @RequestBody AgentRequest request
+            @Valid @RequestBody AgentRequest request,
+            @AuthenticationPrincipal User currentUser
     ) {
-        Agent existing = agentService.getById(agentId);
+        Agent existing = agentService.getByIdForOwner(agentId, currentUser);
 
         existing.setName(request.getName());
         existing.setDescription(request.getDescription());
@@ -69,8 +74,9 @@ public class AgentController {
     }
 
     @GetMapping("/{agentId}")
-    public ResponseEntity<AgentResponse> get(@PathVariable UUID agentId) {
-        return ResponseEntity.ok(toResponse(agentService.getById(agentId)));
+    public ResponseEntity<AgentResponse> get(@PathVariable UUID agentId,
+                                             @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(toResponse(agentService.getByIdForOwner(agentId, currentUser)));
     }
 
     private AgentResponse toResponse(Agent agent) {
