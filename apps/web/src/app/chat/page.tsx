@@ -413,7 +413,7 @@ function ChatPageContent() {
     guide.collapse();
   };
 
-  const guideActions = guide.message?.actions.map((action) => ({
+  const guideActions = guide.actions.map((action) => ({
     id: action.id,
     label: action.label,
     onClick: () => handleGuideAction(action),
@@ -465,13 +465,15 @@ function ChatPageContent() {
           draftMessage={draftMessage}
           guideActions={guideActions}
           guideBody={
-            guide.message?.body ??
-            "Я допоможу розібратися з чатом агента."
+            guide.isVisible && guide.message
+              ? guide.message.body
+              : "Я допоможу розібратися з чатом агента."
           }
-          guideCollapsed={guide.isCollapsed}
+          guideCollapsed={!guide.isVisible || guide.isCollapsed}
           guideTitle={
-            guide.message?.title ??
-            "Перше занурення у Agentic Studio?"
+            guide.isVisible && guide.message
+              ? guide.message.title
+              : "Перше занурення у Agentic Studio?"
           }
           isSending={isBusy}
           isDisabled={isComposerDisabled}
