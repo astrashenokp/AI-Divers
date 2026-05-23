@@ -189,6 +189,7 @@ public class ExecutionController {
         Guardrail guardrail = guardrailService.findByAgentId(agent.getId()).orElse(null);
         String domain = request.getMetadata() == null ? null : request.getMetadata().getDomain();
         String effectiveDomain = resolveDomain(domain);
+        String effectiveUseCase = resolveUseCase(effectiveDomain, request.getMetadata() == null ? null : request.getMetadata().getUseCase());
         int effectiveMaxSteps = effectiveMaxSteps(guardrail, effectiveDomain);
 
         return InternalAgentExecutionRequest.builder()
@@ -196,7 +197,7 @@ public class ExecutionController {
                 .message(request.getMessage())
                 .sessionId(session.getId().toString())
                 .domain(effectiveDomain)
-                .use_case(null)
+                .use_case(effectiveUseCase)
                 .max_steps(effectiveMaxSteps)
                 .system_prompt(agent.getSystemPrompt())
                 .tools(tools.stream()
@@ -221,6 +222,30 @@ public class ExecutionController {
         return switch (domain) {
             case "ecommerce", "education", "tourism", "general" -> domain;
             default -> "general";
+        };
+    }
+
+    private String resolveUseCase(String domain, String useCase) {
+        if (useCase == null || useCase.isBlank()) {
+            return null;
+        }
+
+        String normalized = useCase.trim();
+        return switch (domain) {
+            case "ecommerce" -> switch (normalized) {
+                case "customer_support", "order_tracking", "product_recommendation" -> normalized;
+                default -> null;
+            };
+            case "education" -> switch (normalized) {
+                case "learning_support", "course_info", "skill_development" -> normalized;
+                default -> null;
+            };
+            case "tourism" -> switch (normalized) {
+                case "trip_planning", "destination_info", "booking_support" -> normalized;
+                default -> null;
+            };
+            case "general" -> "general_assistance".equals(normalized) ? normalized : null;
+            default -> null;
         };
     }
 
