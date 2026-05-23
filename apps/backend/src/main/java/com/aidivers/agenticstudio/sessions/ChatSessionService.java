@@ -2,6 +2,7 @@ package com.aidivers.agenticstudio.sessions;
 
 import com.aidivers.agenticstudio.agents.Agent;
 import com.aidivers.agenticstudio.agents.AgentService;
+import com.aidivers.agenticstudio.auth.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,9 +31,29 @@ public class ChatSessionService {
         return chatSessionRepository.save(session);
     }
 
+    public ChatSession createForOwner(UUID agentId, SessionSource source, String title, User owner) {
+        Agent agent = agentService.getByIdForOwner(agentId, owner);
+
+        ChatSession session = ChatSession.builder()
+                .agent(agent)
+                .source(source)
+                .title(title)
+                .build();
+
+        return chatSessionRepository.save(session);
+    }
+
     @Transactional(readOnly = true)
     public ChatSession getById(UUID id) {
         return chatSessionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Chat session not found: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public ChatSession getByIdForOwner(UUID id, User owner) {
+        return chatSessionRepository.findById(id)
+                .filter(session -> session.getAgent().getOwner() != null)
+                .filter(session -> session.getAgent().getOwner().getId().equals(owner.getId()))
                 .orElseThrow(() -> new EntityNotFoundException("Chat session not found: " + id));
     }
 

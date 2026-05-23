@@ -1,8 +1,10 @@
 package com.aidivers.agenticstudio.sessions;
 
+import com.aidivers.agenticstudio.auth.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,13 +22,14 @@ public class SessionController {
     @PostMapping("/agents/{agentId}/sessions")
     @ResponseStatus(HttpStatus.CREATED)
     public ChatSessionResponse createSession(@PathVariable UUID agentId,
-                                             @Valid @RequestBody ChatSessionRequest request) {
+                                             @Valid @RequestBody ChatSessionRequest request,
+                                             @AuthenticationPrincipal User currentUser) {
         SessionSource source = request.getSource() == null ? SessionSource.STUDIO : request.getSource();
         String title = request.getTitle() == null || request.getTitle().isBlank()
                 ? "New chat"
                 : request.getTitle();
 
-        ChatSession session = chatSessionService.create(agentId, source, title);
+        ChatSession session = chatSessionService.createForOwner(agentId, source, title, currentUser);
 
         return ChatSessionResponse.builder()
                 .id(session.getId())
@@ -39,8 +42,9 @@ public class SessionController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
-    public List<MessageResponse> getMessages(@PathVariable UUID sessionId) {
-        return messageService.findBySessionId(sessionId).stream()
+    public List<MessageResponse> getMessages(@PathVariable UUID sessionId,
+                                             @AuthenticationPrincipal User currentUser) {
+        return messageService.findBySessionIdForOwner(sessionId, currentUser).stream()
                 .map(m -> MessageResponse.builder()
                         .id(m.getId())
                         .sessionId(m.getSession().getId())

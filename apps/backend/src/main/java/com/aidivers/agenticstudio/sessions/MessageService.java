@@ -1,5 +1,6 @@
 package com.aidivers.agenticstudio.sessions;
 
+import com.aidivers.agenticstudio.auth.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +28,26 @@ public class MessageService {
         return messageRepository.save(message);
     }
 
+    public Message saveForOwner(UUID sessionId, MessageRole role, String content, User owner) {
+        ChatSession session = chatSessionService.getByIdForOwner(sessionId, owner);
+
+        Message message = Message.builder()
+                .session(session)
+                .role(role)
+                .content(content)
+                .build();
+
+        return messageRepository.save(message);
+    }
+
     @Transactional(readOnly = true)
     public List<Message> findBySessionId(UUID sessionId) {
+        return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Message> findBySessionIdForOwner(UUID sessionId, User owner) {
+        chatSessionService.getByIdForOwner(sessionId, owner);
         return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 }
