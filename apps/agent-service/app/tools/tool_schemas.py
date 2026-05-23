@@ -196,3 +196,21 @@ class GetWeatherInput(BaseModel):
         default=3, ge=1, le=7,
         description="Number of forecast days. Min 1, max 7. Default 3.",
     )
+
+
+# ===========================================================================
+# SHARED UTILITY SCHEMAS
+# ===========================================================================
+
+class WebsiteAnalyzerInput(BaseModel):
+    url: str = Field(
+        ...,
+        description=(
+            "Full public URL to analyze. Must start with https:// or http://. "
+            "Example: 'https://example.com' or 'https://bbc.com/news'"
+        ),
+    )
+    include_links: bool = Field(
+        default=False,
+        description="If true, also return a list of up to 10 links found on the page.",
+    )

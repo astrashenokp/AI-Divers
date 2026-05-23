@@ -18,25 +18,25 @@ from tools.http_request_tool import ToolGuardrailError
 DOMAIN_TOOL_ALLOWLIST: dict[str, frozenset[str]] = {
     "ecommerce": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "product_search", "order_status", "check_price",
     }),
     "education": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "course_search", "course_info", "save_progress",
     }),
     "tourism": frozenset({
         # shared
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
         # domain
         "hotel_search", "itinerary_plan", "get_weather",
     }),
     "general": frozenset({
         # shared only — no domain tools
-        "get_current_time", "search_web", "save_note", "http_request",
+        "get_current_time", "search_web", "save_note", "http_request", "analyze_website",
     }),
 }
 
@@ -57,14 +57,14 @@ REQUIRES_HUMAN_CONFIRMATION: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 
 DOMAIN_MAX_STEPS: dict[str, int] = {
-    "ecommerce": 8,
-    "education": 10,
-    "tourism":   10,
-    "general":   6,
+    "ecommerce": 15,
+    "education": 15,
+    "tourism":   15,
+    "general":   15,
 }
 
-DEFAULT_MAX_STEPS = 10
-DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_MAX_STEPS = 15
+DEFAULT_TIMEOUT_SECONDS = 60
 
 # ---------------------------------------------------------------------------
 # Input sanitization — context filtering

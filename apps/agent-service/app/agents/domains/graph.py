@@ -1,189 +1,90 @@
+import asyncio
+import contextvars
+import json
 import logging
 import os
+from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
 
 from agents.agent_state import AgentState
-from agents.domains.education.prompts import EDUCATION_BASE_PROMPT, USE_CASE_HINTS
+from agents.domains.education.prompts import (
+    EDUCATION_BASE_PROMPT,
+    USE_CASE_HINTS as EDUCATION_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as EDUCATION_TOOLS_BY_USE_CASE,
+)
+from agents.domains.ecommerce.prompts import (
+    ECOMMERCE_BASE_PROMPT,
+    USE_CASE_HINTS as ECOMMERCE_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as ECOMMERCE_TOOLS_BY_USE_CASE,
+)
+from agents.domains.tourism.prompts import (
+    TOURISM_BASE_PROMPT,
+    USE_CASE_HINTS as TOURISM_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as TOURISM_TOOLS_BY_USE_CASE,
+)
+from agents.domains.general.prompts import (
+    GENERAL_BASE_PROMPT,
+    USE_CASE_HINTS as GENERAL_USE_CASE_HINTS,
+    TOOLS_BY_USE_CASE as GENERAL_TOOLS_BY_USE_CASE,
+)
 from services.tool_execution_service import execute_tool_call
+from tools.tool_registry import get_available_tools
+
+_DOTENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_DOTENV_PATH)
 
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
-# ── Tool definitions ──────────────────────────────────────────────────────────
-
-EDUCATION_TOOLS = [
-    {
-        "name": "course_search",
-        "description": "Шукає курси за темою або навичкою",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Пошуковий запит, наприклад 'Python для початківців'",
-                },
-                "level": {
-                    "type": "string",
-                    "description": "Рівень: beginner, intermediate, advanced, any",
-                    "default": "any",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Максимум результатів (1-10)",
-                    "default": 5,
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "course_info",
-        "description": "Детальна інформація про конкретний курс за його ID",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "course_id": {
-                    "type": "string",
-                    "description": "ID курсу",
-                },
-            },
-            "required": ["course_id"],
-        },
-    },
-    {
-        "name": "save_progress",
-        "description": "Зберігає прогрес студента по уроку",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "string",
-                    "description": "ID користувача",
-                },
-                "course_id": {
-                    "type": "string",
-                    "description": "ID курсу",
-                },
-                "lesson_id": {
-                    "type": "string",
-                    "description": "ID уроку",
-                },
-            },
-            "required": ["user_id", "course_id", "lesson_id"],
-        },
-    },
-]
-
-SHARED_TOOLS = [
-    {
-        "name": "get_current_time",
-        "description": "Повертає поточну дату і час у вказаному часовому поясі",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "timezone": {
-                    "type": "string",
-                    "description": "Часовий пояс, наприклад UTC або Europe/Kyiv",
-                    "default": "UTC",
-                },
-            },
-        },
-    },
-    {
-        "name": "search_web",
-        "description": "Пошук в інтернеті для отримання актуальної інформації",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Пошуковий запит",
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Максимум результатів",
-                    "default": 3,
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "save_note",
-        "description": "Зберігає нотатку для поточної сесії",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "session_id": {
-                    "type": "string",
-                    "description": "ID сесії",
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Текст нотатки",
-                },
-            },
-            "required": ["session_id", "content"],
-        },
-    },
-    {
-        "name": "http_request",
-        "description": "Виконує HTTP запит до зовнішнього API або сервісу",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "Повний URL для запиту",
-                },
-                "method": {
-                    "type": "string",
-                    "description": "HTTP метод: GET, POST, PUT, DELETE",
-                    "default": "GET",
-                },
-                "headers": {
-                    "type": "object",
-                    "description": "Заголовки запиту у форматі key-value",
-                    "default": {},
-                },
-                "body": {
-                    "type": "string",
-                    "description": "Тіло запиту для POST/PUT (JSON рядком)",
-                    "default": "",
-                },
-            },
-            "required": ["url"],
-        },
-    },
-]
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # ── Domain configuration ──────────────────────────────────────────────────────
 
 DOMAIN_CONFIG = {
     "education": {
-        "all_tools": EDUCATION_TOOLS + SHARED_TOOLS,
         "base_prompt": EDUCATION_BASE_PROMPT,
-        "use_case_hints": USE_CASE_HINTS,
-        "tools_by_use_case": {
-            "learning_support": [
-                "course_search", "web_search", "save_progress",
-                "save_note", "get_current_time",
-            ],
-            "course_info": [
-                "course_search", "course_info", "web_search", "get_current_time",
-            ],
-            "skill_development": [
-                "course_search", "save_progress", "web_search", "get_current_time",
-            ],
-        },
+        "use_case_hints": EDUCATION_USE_CASE_HINTS,
+        "tools_by_use_case": EDUCATION_TOOLS_BY_USE_CASE,
+    },
+    "ecommerce": {
+        "base_prompt": ECOMMERCE_BASE_PROMPT,
+        "use_case_hints": ECOMMERCE_USE_CASE_HINTS,
+        "tools_by_use_case": ECOMMERCE_TOOLS_BY_USE_CASE,
+    },
+    "tourism": {
+        "base_prompt": TOURISM_BASE_PROMPT,
+        "use_case_hints": TOURISM_USE_CASE_HINTS,
+        "tools_by_use_case": TOURISM_TOOLS_BY_USE_CASE,
+    },
+    "general": {
+        "base_prompt": GENERAL_BASE_PROMPT,
+        "use_case_hints": GENERAL_USE_CASE_HINTS,
+        "tools_by_use_case": GENERAL_TOOLS_BY_USE_CASE,
     },
 }
 
 
-def _get_system_prompt(domain: str, use_case: str | None = None) -> str:
+def _get_openai_client(provider: str | None = None):
+    from openai import AsyncOpenAI
+    import os
+    if provider == "gemini" or os.getenv("GEMINI_API_KEY"):
+        return AsyncOpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=os.getenv("GEMINI_API_KEY"),
+        )
+    return AsyncOpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=GROQ_API_KEY,
+    )
+
+
+def _get_system_prompt(state: AgentState, domain: str, use_case: str | None = None) -> str:
+    if state.get("system_prompt"):
+        return state["system_prompt"]
+
     config = DOMAIN_CONFIG.get(domain)
     if not config:
         return "Ти — корисний AI-асистент. Відповідай українською."
@@ -194,55 +95,189 @@ def _get_system_prompt(domain: str, use_case: str | None = None) -> str:
     return prompt
 
 
-def _get_tools_for_domain(domain: str, use_case: str | None = None) -> list[dict]:
+def _get_tools_for_domain(state: AgentState, domain: str, use_case: str | None = None) -> list[dict]:
+    """Returns tool metadata for the LLM, filtered by domain and use case."""
+    
+    if state.get("tools") is not None:
+        custom_tool_names = state["tools"]
+        all_tools = get_available_tools()
+        filtered_tools = [t for t in all_tools if t["name"] in custom_tool_names]
+        return _to_openai_tools(filtered_tools)
+        
+    all_tools = get_available_tools(domain)
+
+    if not use_case:
+        return _to_openai_tools(all_tools)
+
     config = DOMAIN_CONFIG.get(domain)
     if not config:
-        return SHARED_TOOLS
-
-    all_tools = config["all_tools"]
-    if not use_case:
-        return all_tools
+        return _to_openai_tools(all_tools)
 
     allowed = config["tools_by_use_case"].get(use_case)
     if allowed is None:
-        return all_tools
+        return _to_openai_tools(all_tools)
 
-    return [t for t in all_tools if t["name"] in allowed]
+    return _to_openai_tools([t for t in all_tools if t["name"] in allowed])
 
 
-# ── Helper: extract last user text from messages ──────────────────────────────
+def _to_openai_tools(tools: list[dict]) -> list[dict]:
+    """Converts Anthropic-style tool definitions to OpenAI/Groq format.
+
+    Groq's llama models can be finicky with integer types in tool calls,
+    so we relax integer/number fields to accept strings too.
+    """
+    result = []
+    for t in tools:
+        params_raw = t.get("input_schema") or t.get("parameters") or {}
+        params = dict(params_raw)
+        if "properties" in params:
+            params["properties"] = {
+                k: _relax_number_types(dict(v))
+                for k, v in params["properties"].items()
+            }
+        result.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t.get("description", ""),
+                "parameters": params,
+            },
+        })
+    return result
+
+
+def _relax_number_types(schema: dict) -> dict:
+    """Relaxes integer/number/boolean fields to accept strings (Groq llama quirk).
+
+    Llama-4 (and other Groq models) sometimes pass numeric and boolean
+    fields as JSON strings. We convert them to string type in the schema
+    and fix them back in _coerce_tool_args.
+    """
+    t = schema.get("type")
+    if t in ("integer", "number"):
+        schema["type"] = "string"
+        schema.pop("minimum", None)
+        schema.pop("maximum", None)
+        schema.pop("default", None)
+        schema["description"] = (
+            schema.get("description", "") +
+            f" (приймає {t}, буде конвертовано автоматично)"
+        )
+    elif t == "boolean":
+        schema["type"] = "string"
+        schema["enum"] = ["true", "false"]
+        schema.pop("default", None)
+        schema["description"] = (
+            schema.get("description", "") +
+            " (передай 'true' або 'false' як рядок)"
+        )
+    return schema
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _get_last_text(messages: list) -> str:
     for msg in reversed(messages):
         if not isinstance(msg, dict):
             continue
         if msg.get("role") == "user":
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "text":
-                        return block["text"]
-                return ""
-            if isinstance(content, str):
-                return content
+            return msg.get("content", "") or ""
     return ""
+
+
+def _extract_last_assistant_text(messages: list) -> str:
+    for msg in reversed(messages):
+        if not isinstance(msg, dict) or msg.get("role") != "assistant":
+            continue
+        content = msg.get("content", "")
+        if isinstance(content, str) and content:
+            return content
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    return block["text"]
+    return ""
+
+
+# ── Per-request event queue (contextvars — safe for concurrent requests) ─────
+
+_current_event_queue: contextvars.ContextVar[asyncio.Queue | None] = (
+    contextvars.ContextVar("_current_event_queue", default=None)
+)
 
 
 # ── SSE helper ────────────────────────────────────────────────────────────────
 
+
 def _emit_sse(event: str, data: dict):
-    """Emits SSE event. Logs for now; will connect to API streaming later."""
     logger.info("SSE | event=%s | data=%s", event, data)
+    queue = _current_event_queue.get()
+    if queue is not None:
+        queue.put_nowait((event, data))
+
+
+# ── Build OpenAI messages list from internal format ──────────────────────────
+
+
+def _build_openai_messages(
+    internal_messages: list,
+    system_prompt: str,
+) -> list[dict]:
+    messages = [{"role": "system", "content": system_prompt}]
+
+    for msg in internal_messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            continue
+
+        if role == "tool":
+            tool_msg = {
+                "role": "tool",
+                "tool_call_id": msg.get("tool_call_id", ""),
+                "content": content if isinstance(content, str) else str(content),
+            }
+            if "name" in msg:
+                tool_msg["name"] = msg["name"]
+            messages.append(tool_msg)
+        elif role == "assistant":
+            entry: dict = {"role": "assistant"}
+            if isinstance(content, str):
+                entry["content"] = content
+            elif isinstance(content, list):
+                texts = [b["text"] for b in content if isinstance(b, dict) and b.get("type") == "text"]
+                entry["content"] = " ".join(texts) if texts else ""
+            else:
+                entry["content"] = str(content)
+
+            tool_calls = msg.get("tool_calls")
+            if tool_calls:
+                entry["tool_calls"] = [
+                    {"type": "function", **tc}
+                    if "type" not in tc
+                    else tc
+                    for tc in tool_calls
+                ]
+
+            messages.append(entry)
+        else:
+            messages.append({
+                "role": role,
+                "content": content if isinstance(content, str) else str(content),
+            })
+
+    return messages
 
 
 # ── Graph nodes ───────────────────────────────────────────────────────────────
 
+
 async def reason_node(state: AgentState) -> dict:
-    """LLM reasoning step — calls Claude with system prompt + tools."""
     step_count = state.get("step_count", 0)
     max_steps = state.get("max_steps", 10)
 
-    # Early guardrail: stop before LLM call if limit exceeded
     if step_count >= max_steps:
         logger.warning(
             "Max steps exceeded (early) | step_count=%d | max_steps=%d | exec=%s",
@@ -255,68 +290,99 @@ async def reason_node(state: AgentState) -> dict:
         return {
             "messages": [{
                 "role": "assistant",
-                "content": [{
-                    "type": "text",
-                    "text": (
-                        "Досягнуто максимальної кількості кроків. "
-                        "Напишіть уточнення, якщо потрібно продовжити."
-                    ),
-                }],
+                "content": (
+                    "Досягнуто максимальної кількості кроків. "
+                    "Напишіть уточнення, якщо потрібно продовжити."
+                ),
             }],
             "step_count": step_count + 1,
         }
 
     domain = state.get("domain", "education")
     use_case = state.get("use_case")
-    system_prompt = _get_system_prompt(domain, use_case)
-    tools = _get_tools_for_domain(domain, use_case)
+    system_prompt = _get_system_prompt(state, domain, use_case)
+    tools = _get_tools_for_domain(state, domain, use_case)
 
-    if not ANTHROPIC_API_KEY:
-        logger.warning("ANTHROPIC_API_KEY not set — using fallback response")
+    if not GROQ_API_KEY:
+        logger.warning("GROQ_API_KEY not set — using fallback response")
         last_text = _get_last_text(state["messages"])
         return {
             "messages": [{
                 "role": "assistant",
-                "content": [{
-                    "type": "text",
-                    "text": (
-                        f"[Демо-режим] Отримано запит у домені \"{domain}\". "
-                        f"Користувач написав: \"{last_text or '—'}\". "
-                        f"Для повноцінної роботи встановіть ANTHROPIC_API_KEY."
-                    ),
-                }],
+                "content": (
+                    f"[Демо-режим] Отримано запит у домені \"{domain}\". "
+                    f"Користувач написав: \"{last_text or '—'}\". "
+                    f"Для повноцінної роботи встановіть GROQ_API_KEY."
+                ),
             }],
             "step_count": state.get("step_count", 0) + 1,
         }
 
-    import anthropic
+    provider = state.get("model_provider")
+    client = _get_openai_client(provider)
+    api_messages = _build_openai_messages(state["messages"], system_prompt)
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    api_messages = _prepare_messages_for_api(state["messages"])
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20260514",
-        max_tokens=4096,
-        system=system_prompt,
-        messages=api_messages,
-        tools=tools if tools else None,
+    model = state.get("model_name") or (
+        "gemini-2.5-flash" if provider == "gemini" else GROQ_MODEL
     )
 
-    assistant_content = []
-    has_tool_use = False
+    kwargs = {
+        "model": model,
+        "messages": api_messages,
+        "max_tokens": 4096,
+        "stream": True,
+    }
+    if tools:
+        kwargs["tools"] = tools
 
-    for block in response.content:
-        if block.type == "text":
-            assistant_content.append({"type": "text", "text": block.text})
-        elif block.type == "tool_use":
-            has_tool_use = True
-            assistant_content.append({
-                "type": "tool_use",
-                "id": block.id,
-                "name": block.name,
-                "input": block.input,
+    response = await client.chat.completions.create(**kwargs)
+    
+    assistant_msg: dict = {"role": "assistant"}
+    content_buffer = ""
+    tool_calls_dict = {}
+
+    async for chunk in response:
+        delta = chunk.choices[0].delta
+        if delta.content:
+            content_buffer += delta.content
+            _emit_sse("message_delta", {
+                "execution_id": state["execution_id"],
+                "delta": delta.content
             })
+            
+        if delta.tool_calls:
+            for tc in delta.tool_calls:
+                idx = tc.index
+                if idx not in tool_calls_dict:
+                    tool_calls_dict[idx] = {
+                        "id": tc.id or "",
+                        "type": "function",
+                        "function": {"name": "", "arguments": ""}
+                    }
+                if tc.id:
+                    tool_calls_dict[idx]["id"] = tc.id
+                if tc.function:
+                    if tc.function.name:
+                        tool_calls_dict[idx]["function"]["name"] += tc.function.name
+                    if tc.function.arguments:
+                        tool_calls_dict[idx]["function"]["arguments"] += tc.function.arguments
+
+    assistant_msg["content"] = content_buffer
+
+    has_tool_use = False
+    if tool_calls_dict:
+        has_tool_use = True
+        assistant_msg["tool_calls"] = [
+            {
+                "id": tc["id"],
+                "type": "function",
+                "function": {
+                    "name": tc["function"]["name"],
+                    "arguments": tc["function"]["arguments"],
+                },
+            }
+            for idx, tc in sorted(tool_calls_dict.items())
+        ]
 
     _emit_sse("reasoning_step", {
         "execution_id": state["execution_id"],
@@ -325,25 +391,46 @@ async def reason_node(state: AgentState) -> dict:
     })
 
     return {
-        "messages": [{"role": "assistant", "content": assistant_content}],
+        "messages": [assistant_msg],
         "step_count": state.get("step_count", 0) + 1,
     }
 
 
+def _coerce_tool_args(arguments_json: str) -> dict:
+    """Parses tool arguments and coerces string numbers/booleans to proper types."""
+    args = json.loads(arguments_json)
+    for key, value in args.items():
+        if isinstance(value, str):
+            stripped = value.strip().lower()
+            # Boolean coercion (Llama-4 passes booleans as strings)
+            if stripped == "true":
+                args[key] = True
+                continue
+            if stripped == "false":
+                args[key] = False
+                continue
+            # Numeric coercion
+            stripped = value.strip()
+            if stripped.lstrip("-").isdigit():
+                args[key] = int(stripped)
+            else:
+                try:
+                    args[key] = float(stripped)
+                except ValueError:
+                    pass  # keep as string
+    return args
+
+
 async def tool_node(state: AgentState) -> dict:
-    """Executes tool calls from the last assistant message."""
     last_msg = state["messages"][-1]
     if last_msg.get("role") != "assistant":
         return {"messages": []}
 
     tool_results = []
 
-    for block in last_msg.get("content", []):
-        if not isinstance(block, dict) or block.get("type") != "tool_use":
-            continue
-
-        tool_name = block["name"]
-        tool_args = block.get("input", {})
+    for tc in last_msg.get("tool_calls", []):
+        tool_name = tc["function"]["name"]
+        tool_args = _coerce_tool_args(tc["function"]["arguments"])
 
         _emit_sse("tool_call_started", {
             "execution_id": state["execution_id"],
@@ -357,7 +444,6 @@ async def tool_node(state: AgentState) -> dict:
             execution_id=state["execution_id"],
             domain=state.get("domain"),
             step_count=state.get("step_count", 0),
-            max_steps=state.get("max_steps", 10),
         )
 
         _emit_sse("tool_call_finished", {
@@ -366,19 +452,19 @@ async def tool_node(state: AgentState) -> dict:
         })
 
         tool_results.append({
-            "type": "tool_result",
-            "tool_use_id": block["id"],
+            "role": "tool",
+            "tool_call_id": tc["id"],
+            "name": tc["function"]["name"],
             "content": result.get("result", str(result)),
         })
 
     if not tool_results:
-        return {"messages": []}
+        return {"messages": state["messages"]}
 
-    return {"messages": [{"role": "user", "content": tool_results}]}
+    return {"messages": state["messages"] + tool_results}
 
 
 def guardrail_check(state: AgentState) -> Literal["continue", "finalize"]:
-    """Checks whether the agent should continue or stop."""
     step_count = state.get("step_count", 0)
     max_steps = state.get("max_steps", 10)
 
@@ -397,16 +483,10 @@ def guardrail_check(state: AgentState) -> Literal["continue", "finalize"]:
     if not last_msg or last_msg.get("role") != "assistant":
         return "finalize"
 
-    has_tool_use = any(
-        isinstance(b, dict) and b.get("type") == "tool_use"
-        for b in last_msg.get("content", [])
-    )
-
-    return "continue" if has_tool_use else "finalize"
+    return "continue" if last_msg.get("tool_calls") else "finalize"
 
 
 def final_node(state: AgentState) -> dict:
-    """Formats the final answer for the user."""
     answer = _extract_last_assistant_text(state["messages"])
 
     if not answer:
@@ -423,39 +503,10 @@ def final_node(state: AgentState) -> dict:
     return {"messages": [{"role": "assistant", "content": answer}]}
 
 
-def _extract_last_assistant_text(messages: list) -> str:
-    for msg in reversed(messages):
-        if not isinstance(msg, dict) or msg.get("role") != "assistant":
-            continue
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    return block["text"]
-        elif isinstance(content, str):
-            return content
-    return ""
-
-
-def _prepare_messages_for_api(messages: list) -> list:
-    """Converts internal message format to Anthropic Messages API format."""
-    result = []
-    for msg in messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-        if role == "system":
-            continue
-        if isinstance(content, list):
-            result.append({"role": role, "content": content})
-        else:
-            result.append({"role": role, "content": str(content)})
-    return result
-
-
 # ── Graph factory ─────────────────────────────────────────────────────────────
 
+
 def create_domain_graph(domain: str) -> StateGraph:
-    """Creates a compiled LangGraph StateGraph for the given domain."""
     builder = StateGraph(AgentState)
 
     builder.add_node("reason", reason_node)

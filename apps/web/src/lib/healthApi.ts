@@ -12,8 +12,17 @@ export const getFrontendRuntimeStatus = (): FrontendRuntimeStatus => ({
   isMockApiEnabled: USE_MOCK_API,
 });
 
-export const getBackendHealth = () =>
-  apiClient.get<BackendHealthResponse>(HEALTH_PATH);
+export const getBackendHealth = () => {
+  if (USE_MOCK_API) {
+    return Promise.resolve<BackendHealthResponse>({
+      status: "MOCK",
+      service: "agentic-studio-frontend-mock",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return apiClient.get<BackendHealthResponse>(HEALTH_PATH);
+};
 
 export const checkBackendReachable = async (): Promise<boolean> => {
   try {

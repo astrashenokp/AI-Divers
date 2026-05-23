@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 # ── Pre-compile subgraphs ─────────────────────────────────────────────────────
 
 _education_graph = create_domain_graph("education")
+_ecommerce_graph = create_domain_graph("ecommerce")
+_tourism_graph = create_domain_graph("tourism")
+_general_graph = create_domain_graph("general")
 
 
 def _route_after_router(state: AgentState) -> str:
@@ -25,22 +28,27 @@ def create_main_graph() -> StateGraph:
 
     builder.add_node("router", router_node)
     builder.add_node("education", _education_graph)
+    builder.add_node("ecommerce", _ecommerce_graph)
+    builder.add_node("tourism", _tourism_graph)
+    builder.add_node("general", _general_graph)
 
     builder.set_entry_point("router")
 
-    # TODO: add ecommerce, tourism, general subgraphs once implemented
     builder.add_conditional_edges(
         "router",
         _route_after_router,
         {
             "education": "education",
-            "ecommerce": "education",
-            "tourism": "education",
-            "general": "education",
+            "ecommerce": "ecommerce",
+            "tourism": "tourism",
+            "general": "general",
         },
     )
 
     builder.add_edge("education", END)
+    builder.add_edge("ecommerce", END)
+    builder.add_edge("tourism", END)
+    builder.add_edge("general", END)
 
     return builder.compile()
 

@@ -1,51 +1,79 @@
+import json
 import logging
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from agents.agent_state import AgentState
 from agents.router.prompts import ROUTER_SYSTEM_PROMPT
 
+_DOTENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_DOTENV_PATH)
+
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 VALID_DOMAINS = {"ecommerce", "education", "tourism", "general"}
 
 
-def router_node(state: AgentState) -> dict:
+def _get_openai_client():
+    from openai import AsyncOpenAI
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        return AsyncOpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=gemini_key,
+        )
+    return AsyncOpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=GROQ_API_KEY,
+    )
+
+
+async def router_node(state: AgentState) -> dict:
     if state.get("domain"):
         logger.info("Domain from frontend: %s", state["domain"])
         return {"domain": state["domain"]}
 
-    domain = _classify_with_llm(state["messages"])
+    domain = await _classify_with_llm(state["messages"])
     logger.info("Classified domain: %s", domain)
     return {"domain": domain}
 
 
-def _classify_with_llm(messages: list) -> str:
-    if ANTHROPIC_API_KEY:
+async def _classify_with_llm(messages: list) -> str:
+    if GROQ_API_KEY:
         try:
-            return _classify_with_anthropic(messages)
+            return await _classify_with_groq(messages)
         except Exception as e:
             logger.warning("LLM classification failed: %s, using fallback", e)
 
     return _classify_fallback(messages)
 
 
-def _classify_with_anthropic(messages: list) -> str:
-    import anthropic
+async def _classify_with_groq(messages: list) -> str:
+    client = _get_openai_client()
+    text = _get_last_text(messages) or "hello"
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    last_text = _get_last_text(messages)
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20260514",
-        max_tokens=10,
-        system=ROUTER_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": last_text or "hello"}],
-    )
-
-    domain = response.content[0].text.strip().lower()
-    return domain if domain in VALID_DOMAINS else "general"
+    try:
+        import os
+        model_name = "gemini-2.5-flash" if os.getenv("GEMINI_API_KEY") else GROQ_MODEL
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            temperature=0.0,
+            max_tokens=10,
+        )
+        domain = response.choices[0].message.content.strip().lower()
+        return domain if domain in VALID_DOMAINS else "general"
+    finally:
+        await client.close()
 
 
 def _classify_fallback(messages: list) -> str:

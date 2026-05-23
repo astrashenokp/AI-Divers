@@ -5,7 +5,9 @@ import {
 import {
   mockAgents,
   mockDeploymentSettings,
+  mockDomains,
   mockGuardrails,
+  mockGuardrailsConfig,
   mockLiveTrackingEvents,
   mockSessionMessages,
   mockToolTypes,
@@ -17,7 +19,9 @@ import type {
   ChatMessage,
   ChatSession,
   DeploymentSettings,
+  DomainsResponse,
   GuardrailConfig,
+  GuardrailsConfigResponse,
   LiveTrackingEvent,
   StreamEventHandlers,
   ToolTypesResponse,
@@ -113,6 +117,16 @@ export async function updateAgent(
 export async function listToolTypes(): Promise<ToolTypesResponse> {
   await wait(MOCK_DELAY_MS);
   return clone(mockToolTypes);
+}
+
+export async function listDomains(): Promise<DomainsResponse> {
+  await wait(MOCK_DELAY_MS);
+  return clone(mockDomains);
+}
+
+export async function getGuardrailsConfig(): Promise<GuardrailsConfigResponse> {
+  await wait(MOCK_DELAY_MS);
+  return clone(mockGuardrailsConfig);
 }
 
 export async function attachToolToAgent(
@@ -222,7 +236,7 @@ export async function getWidgetConfig(
   return {
     deploymentSlug,
     agentName: agent.name,
-    welcomeMessage: `Ask ${agent.name} to help with your workflow.`,
+    welcomeMessage: `Запитайте ${agent.name}, як він може допомогти з вашим сценарієм.`,
     primaryColor: "#2563eb",
     allowedOrigins: ["http://localhost:3000"],
   };
@@ -249,59 +263,59 @@ export async function runMockAgentExecutionStream(
   const streamEvents: LiveTrackingEvent[] = [
     createStreamEvent(mockLiveTrackingEvents[0], {
       executionId,
-      summary: `Started execution for agent ${agentId}.`,
+      summary: `Запущено виконання для агента ${agentId}.`,
     }),
     createStreamEvent(mockLiveTrackingEvents[1], {
       executionId,
-      summary: "Reading the user request and selecting a plan.",
+      summary: "Агент читає запит користувача і обирає план.",
       input: { message },
     }),
     createStreamEvent(mockLiveTrackingEvents[2], {
       executionId,
-      summary: "Checking whether web context would improve the answer.",
+      summary: "Агент перевіряє, чи потрібен додатковий контекст.",
     }),
     createStreamEvent(mockLiveTrackingEvents[3], {
       executionId,
-      summary: "Tool returned concise context for the response.",
+      summary: "Tool повернув короткий контекст для відповіді.",
     }),
     createStreamEvent(mockLiveTrackingEvents[1], {
       executionId,
       stepNumber: 5,
-      summary: "Composing a final answer from the gathered context.",
+      summary: "Агент складає фінальну відповідь із зібраного контексту.",
     }),
     createStreamEvent(mockLiveTrackingEvents[1], {
       executionId,
       type: LIVE_TRACKING_EVENTS.MESSAGE_DELTA,
       stepNumber: 6,
-      summary: "Agentic Studio is a configurable workspace",
+      summary: "Agentic Studio - це налаштовуваний простір",
       status: "running",
-      output: { delta: "Agentic Studio is a configurable workspace " },
+      output: { delta: "Agentic Studio - це налаштовуваний простір " },
     }),
     createStreamEvent(mockLiveTrackingEvents[1], {
       executionId,
       type: LIVE_TRACKING_EVENTS.MESSAGE_DELTA,
       stepNumber: 7,
-      summary: "for building, observing, and deploying agents",
+      summary: "для створення, спостереження і deployment агентів",
       status: "running",
-      output: { delta: "for building, observing, and deploying agents " },
+      output: { delta: "для створення, спостереження і deployment агентів " },
     }),
     createStreamEvent(mockLiveTrackingEvents[1], {
       executionId,
       type: LIVE_TRACKING_EVENTS.MESSAGE_DELTA,
       stepNumber: 8,
-      summary: "instead of a single hardcoded chatbot.",
+      summary: "а не один жорстко зашитий chatbot.",
       status: "running",
-      output: { delta: "instead of a single hardcoded chatbot." },
+      output: { delta: "а не один жорстко зашитий chatbot." },
     }),
     createStreamEvent(mockLiveTrackingEvents[0], {
       executionId,
       type: LIVE_TRACKING_EVENTS.EXECUTION_COMPLETED,
       stepNumber: 9,
-      summary: "Execution completed with a final answer.",
+      summary: "Виконання завершено з фінальною відповіддю.",
       status: "completed",
       output: {
         finalMessage:
-          "Agentic Studio is a configurable workspace for building, observing, and deploying agents instead of a single hardcoded chatbot.",
+          "Agentic Studio - це налаштовуваний простір для створення, спостереження і deployment агентів, а не один жорстко зашитий chatbot.",
       },
     }),
   ];
@@ -331,7 +345,7 @@ export async function runMockAgentExecutionStream(
         sessionId: "session-demo-1",
         role: "assistant",
         content:
-          "Agentic Studio is a configurable workspace for building, observing, and deploying agents instead of a single hardcoded chatbot.",
+          "Agentic Studio - це налаштовуваний простір для створення, спостереження і deployment агентів, а не один жорстко зашитий chatbot.",
         createdAt: timestamp,
         metadata: {
           widgetConfigPath: getPublicWidgetConfigPath(
@@ -343,7 +357,9 @@ export async function runMockAgentExecutionStream(
   } catch (error) {
     handlers.onError?.({
       message:
-        error instanceof Error ? error.message : "Mock stream failed to run.",
+        error instanceof Error
+          ? error.message
+          : "Не вдалося запустити демо-потік.",
     });
   } finally {
     handlers.onDone?.();

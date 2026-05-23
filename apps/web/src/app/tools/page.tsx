@@ -29,7 +29,7 @@ export default function ToolsPage() {
           {toolCategories.map(({ title, description, domain, icon: Icon }) => (
             <Link
               className={styles.categoryCard}
-              href={domain === "general" ? "/chat?domain=general" : `/tools/${domain}`}
+              href={`/tools/${domain}`}
               key={domain}
             >
               <span className={styles.categoryIcon}>
@@ -37,9 +37,7 @@ export default function ToolsPage() {
               </span>
               <h2>{title}</h2>
               <p>{description}</p>
-              <span className={styles.cardAction}>
-                {domain === "general" ? "Відкрити чат" : "Переглянути tools"}
-              </span>
+              <span className={styles.cardAction}>Переглянути tools</span>
             </Link>
           ))}
         </div>
