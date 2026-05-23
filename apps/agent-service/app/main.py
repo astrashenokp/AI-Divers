@@ -186,6 +186,7 @@ class AgentStreamRequest(BaseModel):
     model_name: str | None = None
     metadata: dict[str, Any] = {}
     messages: list | None = None
+    executionId: str | None = None
 
 def _sse_event(event: str, data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
@@ -275,7 +276,7 @@ async def agent_stream(request: AgentStreamRequest):
         if not request.message or not request.message.strip():
             raise HTTPException(status_code=422, detail="message must not be empty")
 
-    execution_id = f"stream-{uuid.uuid4().hex[:8]}"
+    execution_id = request.executionId or f"stream-{uuid.uuid4().hex[:8]}"
     logger.info("Agent stream started | execution_id=%s | domain=%s | session=%s", execution_id, request.domain, request.sessionId)
 
     return StreamingResponse(
