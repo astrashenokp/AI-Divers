@@ -10,19 +10,24 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatLayout } from "@/components/chat/ChatLayout";
 import type { ChatMessageViewModel } from "@/components/chat/ChatMessageBubble";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
-import type { AiDiverAction } from "@/components/help/AiDiverActionChips";
 import { AiDiverGuide } from "@/components/help/AiDiverGuide";
-import { useAiDiverGuide } from "@/hooks/useAiDiverGuide";
 import { useAgents } from "@/hooks/useAgents";
 import { useAgentExecutionStream } from "@/hooks/useAgentExecutionStream";
 import { useAgentSession } from "@/hooks/useAgentSession";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { LIVE_TRACKING_EVENTS } from "@/lib/constants";
-import type { GuideAction } from "@/lib/guideTypes";
 import type { ChatMessage, LiveTrackingEvent } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import {
+  Suspense,
+  type ComponentProps,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import styles from "./page.module.scss";
+
+type AiDiverGuideProps = ComponentProps<typeof AiDiverGuide>;
 
 type ToolContext = {
   categoryTitle: string;
@@ -213,26 +218,20 @@ function ToolContextBanner({ context }: { context?: ToolContext }) {
 
 function ChatComposerArea({
   draftMessage,
-  guideActions,
-  guideBody,
-  guideCollapsed,
-  guideTitle,
+  guideActionHandlers,
+  guideContext,
   isSending,
   isDisabled,
   toolContext,
-  onGuideCollapsedChange,
   onDraftChange,
   onSubmit,
 }: {
   draftMessage: string;
-  guideActions?: AiDiverAction[];
-  guideBody: string;
-  guideCollapsed: boolean;
-  guideTitle: string;
+  guideActionHandlers: NonNullable<AiDiverGuideProps["guideActionHandlers"]>;
+  guideContext: NonNullable<AiDiverGuideProps["guideContext"]>;
   isSending: boolean;
   isDisabled: boolean;
   toolContext?: ToolContext;
-  onGuideCollapsedChange: (collapsed: boolean) => void;
   onDraftChange: (value: string) => void;
   onSubmit: (value: string) => void;
 }) {
@@ -240,11 +239,10 @@ function ChatComposerArea({
     <>
       <ToolContextBanner context={toolContext} />
       <AiDiverGuide
-        title={guideTitle}
-        body={guideBody}
-        actions={guideActions}
-        isCollapsed={guideCollapsed}
-        onCollapsedChange={onGuideCollapsedChange}
+        title="Перше занурення у Agentic Studio?"
+        body="Я допоможу розібратися з чатом агента."
+        guideActionHandlers={guideActionHandlers}
+        guideContext={guideContext}
       />
       <ChatComposer
         value={draftMessage}
@@ -287,30 +285,110 @@ function ChatPageContent() {
     () => getToolContext(searchParams.get("domain"), searchParams.get("tool")),
     [searchParams],
   );
+  const runChatMessage = useCallback(
+    async (message: string) => {
+      if (!selectedAgent) {
+        setDraftMessage(message);
+        return;
+      }
+
+      const activeSession =
+        session ?? (await startSession(`${selectedAgent.name} test chat`));
+      const metadata: Record<string, string> = {};
+      const domain = toolContext?.domain ?? selectedAgent.tools[0]?.category;
+
+      if (domain) {
+        metadata.domain = domain;
+      }
+
+      if (toolContext?.toolName) {
+        metadata.tool = toolContext.toolName;
+      }
+
+      setDraftMessage("");
+      await startExecution(message, {
+        sessionId: activeSession.id,
+        metadata,
+      });
+    },
+    [selectedAgent, session, startExecution, startSession, toolContext],
+  );
   const latestExecutionEvent = executionEvents.at(-1);
-  const guide = useAiDiverGuide({
-    hasSelectedAgent: Boolean(selectedAgent),
-    hasSystemPrompt: Boolean(selectedAgent?.systemPrompt.trim()),
-    enabledToolCount:
-      selectedAgent?.tools.filter((tool) => tool.enabled).length ?? 0,
-    backendReachable: healthError ? false : isBackendReachable ? true : null,
-    isStreaming,
-    latestExecutionStatus:
-      latestExecutionEvent?.status === "idle"
-        ? undefined
-        : latestExecutionEvent?.status,
-    latestErrorMessage:
-      executionError?.message ??
-      sessionError?.message ??
-      agentsError?.message ??
-      healthError?.message,
-    deploymentConfigured: Boolean(
-      selectedAgent?.deployment.publicAccessEnabled ||
-        selectedAgent?.deployment.restEnabled ||
-        selectedAgent?.deployment.webhookEnabled ||
-        selectedAgent?.deployment.widgetEnabled,
-    ),
-  });
+  const guideContext = useMemo<NonNullable<AiDiverGuideProps["guideContext"]>>(
+    () => ({
+      hasSelectedAgent: Boolean(selectedAgent),
+      hasSystemPrompt: Boolean(selectedAgent?.systemPrompt.trim()),
+      enabledToolCount:
+        selectedAgent?.tools.filter((tool) => tool.enabled).length ?? 0,
+      backendReachable: healthError ? false : isBackendReachable ? true : null,
+      isStreaming,
+      latestExecutionStatus:
+        latestExecutionEvent?.status === "idle"
+          ? undefined
+          : latestExecutionEvent?.status,
+      latestErrorMessage:
+        executionError?.message ??
+        sessionError?.message ??
+        agentsError?.message ??
+        healthError?.message,
+      deploymentConfigured: Boolean(
+        selectedAgent?.deployment.publicAccessEnabled ||
+          selectedAgent?.deployment.restEnabled ||
+          selectedAgent?.deployment.webhookEnabled ||
+          selectedAgent?.deployment.widgetEnabled,
+      ),
+    }),
+    [
+      agentsError?.message,
+      executionError?.message,
+      healthError,
+      isBackendReachable,
+      isStreaming,
+      latestExecutionEvent?.status,
+      selectedAgent,
+      sessionError?.message,
+    ],
+  );
+  const guideActionHandlers = useMemo<
+    NonNullable<AiDiverGuideProps["guideActionHandlers"]>
+  >(
+    () => ({
+      check_backend_health: () => {
+        void refreshHealth();
+      },
+      retry_stream: () => {
+        setDraftMessage("Повтори останній тест агента.");
+      },
+      run_mock_mode: () => {
+        void runChatMessage("Запусти демо-приклад у mock режимі.");
+      },
+      insert_template: () => {
+        setDraftMessage(
+          "Допоможи налаштувати агента з чіткою роллю, одним tool і безпечними guardrails.",
+        );
+      },
+      add_default_tool: () => {
+        setDraftMessage("Покажи, який базовий tool варто додати цьому агенту.");
+      },
+      set_safe_guardrails: () => {
+        setDraftMessage("Поясни безпечні guardrails для цього агента.");
+      },
+      open_widget_preview: () => {
+        setDraftMessage(
+          "Поясни, як підготувати widget deployment для цього агента.",
+        );
+      },
+      explain_screen: () => {
+        setDraftMessage("Поясни, що робити на цьому екрані Agentic Studio.");
+      },
+      start_guided_setup: () => {
+        setDraftMessage(
+          "Проведи мене через перше налаштування агента в Agentic Studio.",
+        );
+      },
+    }),
+    [refreshHealth, runChatMessage],
+  );
 
   const messagesViewModel = useMemo<ChatMessageViewModel[]>(() => {
     const baseMessages =
@@ -360,88 +438,8 @@ function ChatPageContent() {
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
   const isComposerDisabled = isBusy || !selectedAgent;
 
-  const handleGuideAction = (action: GuideAction) => {
-    if (action.type === "dismiss") {
-      guide.dismiss();
-      return;
-    }
-
-    if (action.type === "check_backend_health") {
-      void refreshHealth();
-      return;
-    }
-
-    if (action.type === "retry_stream") {
-      setDraftMessage("Повтори останній тест агента.");
-      guide.collapse();
-      return;
-    }
-
-    if (action.type === "run_mock_mode") {
-      setDraftMessage("Запусти демо-приклад у mock режимі.");
-      guide.collapse();
-      return;
-    }
-
-    if (action.type === "insert_template") {
-      setDraftMessage(
-        "Допоможи налаштувати агента з чіткою роллю, одним tool і безпечними guardrails.",
-      );
-      guide.collapse();
-      return;
-    }
-
-    if (action.type === "add_default_tool") {
-      setDraftMessage("Покажи, який базовий tool варто додати цьому агенту.");
-      guide.collapse();
-      return;
-    }
-
-    if (action.type === "set_safe_guardrails") {
-      setDraftMessage("Поясни безпечні guardrails для цього агента.");
-      guide.collapse();
-      return;
-    }
-
-    if (action.type === "open_widget_preview") {
-      setDraftMessage("Поясни, як підготувати widget deployment для цього агента.");
-      guide.collapse();
-      return;
-    }
-
-    setDraftMessage("Поясни, що робити на цьому екрані Agentic Studio.");
-    guide.collapse();
-  };
-
-  const guideActions = guide.message?.actions.map((action) => ({
-    id: action.id,
-    label: action.label,
-    onClick: () => handleGuideAction(action),
-  }));
-
   const handleSubmit = async (message: string) => {
-    if (!selectedAgent) {
-      return;
-    }
-
-    const activeSession =
-      session ?? (await startSession(`${selectedAgent.name} test chat`));
-    const metadata: Record<string, string> = {};
-    const domain = toolContext?.domain ?? selectedAgent.tools[0]?.category;
-
-    if (domain) {
-      metadata.domain = domain;
-    }
-
-    if (toolContext?.toolName) {
-      metadata.tool = toolContext.toolName;
-    }
-
-    setDraftMessage("");
-    await startExecution(message, {
-      sessionId: activeSession.id,
-      metadata,
-    });
+    await runChatMessage(message);
   };
 
   return (
@@ -463,27 +461,11 @@ function ChatPageContent() {
       composer={
         <ChatComposerArea
           draftMessage={draftMessage}
-          guideActions={guideActions}
-          guideBody={
-            guide.message?.body ??
-            "Я допоможу розібратися з чатом агента."
-          }
-          guideCollapsed={guide.isCollapsed}
-          guideTitle={
-            guide.message?.title ??
-            "Перше занурення у Agentic Studio?"
-          }
+          guideActionHandlers={guideActionHandlers}
+          guideContext={guideContext}
           isSending={isBusy}
           isDisabled={isComposerDisabled}
           toolContext={toolContext}
-          onGuideCollapsedChange={(collapsed) => {
-            if (collapsed) {
-              guide.collapse();
-              return;
-            }
-
-            guide.expand();
-          }}
           onDraftChange={setDraftMessage}
           onSubmit={handleSubmit}
         />

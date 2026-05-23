@@ -4,7 +4,9 @@ import type {
   AgentTool,
   ChatMessage,
   DeploymentSettings,
+  DomainsResponse,
   GuardrailConfig,
+  GuardrailsConfigResponse,
   LiveTrackingEvent,
   ToolType,
   ToolTypesResponse,
@@ -20,6 +22,63 @@ export const mockGuardrails: GuardrailConfig = {
     "save_progress",
     "save_note",
   ],
+};
+
+export const mockDomains: DomainsResponse = {
+  domains: [
+    { id: "ecommerce", label: "E-commerce" },
+    { id: "education", label: "Education" },
+    { id: "tourism", label: "Tourism" },
+    { id: "general", label: "General" },
+  ],
+};
+
+export const mockGuardrailsConfig: GuardrailsConfigResponse = {
+  valid_domains: ["ecommerce", "education", "tourism", "general"],
+  default_max_steps: 10,
+  default_timeout_seconds: 30,
+  domain_max_steps: {
+    ecommerce: 8,
+    education: 10,
+    tourism: 10,
+    general: 6,
+  },
+  tools_requiring_confirmation: ["http_request", "save_progress", "save_note"],
+  domain_tool_allowlists: {
+    ecommerce: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "product_search",
+      "order_status",
+      "check_price",
+    ],
+    education: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "course_search",
+      "course_info",
+      "save_progress",
+    ],
+    tourism: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "hotel_search",
+      "itinerary_plan",
+      "get_weather",
+    ],
+    general: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+    ],
+  },
 };
 
 export const mockDeploymentSettings: DeploymentSettings = {

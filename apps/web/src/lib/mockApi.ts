@@ -5,7 +5,9 @@ import {
 import {
   mockAgents,
   mockDeploymentSettings,
+  mockDomains,
   mockGuardrails,
+  mockGuardrailsConfig,
   mockLiveTrackingEvents,
   mockSessionMessages,
   mockToolTypes,
@@ -17,7 +19,9 @@ import type {
   ChatMessage,
   ChatSession,
   DeploymentSettings,
+  DomainsResponse,
   GuardrailConfig,
+  GuardrailsConfigResponse,
   LiveTrackingEvent,
   StreamEventHandlers,
   ToolTypesResponse,
@@ -113,6 +117,16 @@ export async function updateAgent(
 export async function listToolTypes(): Promise<ToolTypesResponse> {
   await wait(MOCK_DELAY_MS);
   return clone(mockToolTypes);
+}
+
+export async function listDomains(): Promise<DomainsResponse> {
+  await wait(MOCK_DELAY_MS);
+  return clone(mockDomains);
+}
+
+export async function getGuardrailsConfig(): Promise<GuardrailsConfigResponse> {
+  await wait(MOCK_DELAY_MS);
+  return clone(mockGuardrailsConfig);
 }
 
 export async function attachToolToAgent(
