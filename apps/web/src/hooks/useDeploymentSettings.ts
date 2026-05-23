@@ -73,6 +73,35 @@ export const useDeploymentSettings = (agentId?: string) => {
     [selectedAgent],
   );
 
+  const generateDeployment = useCallback(async () => {
+    if (!selectedAgent) {
+      throw new Error("Select an agent before generating deployment settings.");
+    }
+
+    setIsLoading(true);
+    setError(undefined);
+
+    try {
+      const generatedDeployment = USE_MOCK_API
+        ? await mockApi.generateDeploymentSettings(selectedAgent.id)
+        : await deploymentsApi.generateDeploymentSettings(selectedAgent.id);
+
+      agentStoreActions.upsertAgent({
+        ...selectedAgent,
+        deployment: generatedDeployment,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return generatedDeployment;
+    } catch (caughtError) {
+      const apiError = toApiError(caughtError);
+      setError(apiError);
+      throw apiError;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedAgent]);
+
   const loadWidgetConfig = useCallback(
     async (deploymentSlug = selectedAgent?.deployment.deploymentSlug) => {
       if (!deploymentSlug) {
@@ -106,6 +135,7 @@ export const useDeploymentSettings = (agentId?: string) => {
     isLoading,
     error,
     updateDeployment,
+    generateDeployment,
     loadWidgetConfig,
   };
 };

@@ -61,6 +61,8 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
         throw new Error("Select an agent before starting execution.");
       }
 
+      const activeAgentId = agentId ?? "mock-agent-id";
+
       if (state.isStreaming) {
         stopExecution();
       }
@@ -121,7 +123,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
       try {
         if (USE_MOCK_API || options.forceMock) {
           await mockApi.runMockAgentExecutionStream(
-            agentId ?? "mock-agent-id",
+            activeAgentId,
             message,
             handlers,
             abortController.signal,
@@ -130,7 +132,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
         }
 
         await sessionsApi.streamAgentExecution(
-          agentId,
+          activeAgentId,
           {
             sessionId: activeSessionId,
             message,
