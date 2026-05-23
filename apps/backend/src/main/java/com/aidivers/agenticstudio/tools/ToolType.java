@@ -21,7 +21,6 @@ public enum ToolType {
     ITINERARY_PLAN("itinerary_plan", "План подорожі"),
     GET_WEATHER("get_weather", "Прогноз погоди"),
 
-    DATABASE_QUERY("database_query", "Пошук в базі даних");
 
     public final String name;
     private final String id;
