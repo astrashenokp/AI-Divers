@@ -6,7 +6,12 @@ import {
   getGuideMessage,
   shouldShowGuideMessage,
 } from "../lib/guideRules";
-import type { GuideContext } from "../lib/guideTypes";
+import type {
+  GuideAction,
+  GuideActionType,
+  GuideContext,
+} from "../lib/guideTypes";
+import { executionStoreActions } from "../store/executionStore";
 import {
   getGuideStoreSnapshot,
   guideStoreActions,
@@ -19,6 +24,15 @@ export type UseAiDiverGuideOptions = Partial<
   route?: string;
 };
 
+export type GuideActionHandlers = Partial<
+  Record<GuideActionType, (action: GuideAction) => void | Promise<void>>
+>;
+
+export interface UseAiDiverGuideConfig {
+  context?: UseAiDiverGuideOptions;
+  actionHandlers?: GuideActionHandlers;
+}
+
 const DEFAULT_GUIDE_CONTEXT: Omit<GuideContext, "isFirstVisit" | "route"> = {
   hasSelectedAgent: false,
   hasSystemPrompt: false,
@@ -28,8 +42,11 @@ const DEFAULT_GUIDE_CONTEXT: Omit<GuideContext, "isFirstVisit" | "route"> = {
   deploymentConfigured: false,
 };
 
-export const useAiDiverGuide = (options: UseAiDiverGuideOptions = {}) => {
+const EMPTY_GUIDE_OPTIONS: UseAiDiverGuideOptions = {};
+
+export const useAiDiverGuide = (config: UseAiDiverGuideConfig = {}) => {
   const pathname = usePathname();
+  const options = config.context ?? EMPTY_GUIDE_OPTIONS;
   const state = useSyncExternalStore(
     subscribeGuideStore,
     getGuideStoreSnapshot,
@@ -74,6 +91,31 @@ export const useAiDiverGuide = (options: UseAiDiverGuideOptions = {}) => {
     guideStoreActions.setCollapsed(false);
   }, []);
 
+  const handleAction = useCallback(
+    async (action: GuideAction) => {
+      if (action.type === "dismiss") {
+        dismiss();
+        return;
+      }
+
+      if (
+        action.type === "retry_stream" ||
+        action.type === "run_mock_mode" ||
+        action.type === "check_backend_health"
+      ) {
+        executionStoreActions.setError(undefined);
+      }
+
+      await config.actionHandlers?.[action.type]?.(action);
+      guideStoreActions.markFirstVisitSeen();
+
+      if (action.type !== "check_backend_health") {
+        guideStoreActions.setCollapsed(true);
+      }
+    },
+    [config.actionHandlers, dismiss],
+  );
+
   return {
     context,
     message,
@@ -81,6 +123,7 @@ export const useAiDiverGuide = (options: UseAiDiverGuideOptions = {}) => {
     isCollapsed: state.isCollapsed,
     isVisible,
     isHydrated: state.isHydrated,
+    handleAction,
     dismiss,
     collapse,
     expand,

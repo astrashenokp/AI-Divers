@@ -174,7 +174,7 @@ async def execute_tool(request: ExecuteToolRequest):
 # POST /internal/v1/agent/stream  — consumed by Stas API / frontend
 # ---------------------------------------------------------------------------
 class AgentStreamRequest(BaseModel):
-    message: str
+    message: str | None = None
     sessionId: str | None = None
     domain: str | None = None
     use_case: str | None = None
@@ -185,6 +185,8 @@ class AgentStreamRequest(BaseModel):
     model_provider: str | None = None
     model_name: str | None = None
     metadata: dict[str, Any] = {}
+    messages: list | None = None
+    executionId: str | None = None
 
 def _sse_event(event: str, data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
@@ -210,8 +212,9 @@ async def _stream_agent(
     token = _current_event_queue.set(event_queue)
 
     try:
+        history = request.messages if request.messages else [{"role": "user", "content": request.message}]
         initial_state: AgentState = {
-            "messages": [{"role": "user", "content": request.message}],
+            "messages": history,
             "domain":   domain or "general",
             "use_case": request.use_case,
             "execution_id": execution_id,
@@ -269,10 +272,11 @@ async def _stream_agent(
 
 @app.post("/internal/v1/agent/stream")
 async def agent_stream(request: AgentStreamRequest):
-    if not request.message or not request.message.strip():
-        raise HTTPException(status_code=422, detail="message must not be empty")
+    if not request.messages:
+        if not request.message or not request.message.strip():
+            raise HTTPException(status_code=422, detail="message must not be empty")
 
-    execution_id = f"stream-{uuid.uuid4().hex[:8]}"
+    execution_id = request.executionId or f"stream-{uuid.uuid4().hex[:8]}"
     logger.info("Agent stream started | execution_id=%s | domain=%s | session=%s", execution_id, request.domain, request.sessionId)
 
     return StreamingResponse(

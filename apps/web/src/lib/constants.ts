@@ -9,6 +9,8 @@ export const API_V1_PREFIX = "/api/v1";
 
 export const HEALTH_PATH = `${API_V1_PREFIX}/health`;
 export const AGENTS_PATH = `${API_V1_PREFIX}/agents`;
+export const DOMAINS_PATH = `${API_V1_PREFIX}/domains`;
+export const GUARDRAILS_CONFIG_PATH = `${API_V1_PREFIX}/guardrails-config`;
 export const TOOL_TYPES_PATH = `${API_V1_PREFIX}/tool-types`;
 export const SESSIONS_PATH = `${API_V1_PREFIX}/sessions`;
 export const PUBLIC_AGENTS_PATH = `${API_V1_PREFIX}/public/agents`;

@@ -27,6 +27,15 @@ export type ToolTypeKey =
 
 export type ToolCategoryId = "education" | "tourism" | "ecommerce" | "general";
 
+export interface DomainMetadata {
+  id: ToolCategoryId | string;
+  label: string;
+}
+
+export interface DomainsResponse {
+  domains: DomainMetadata[];
+}
+
 export type ToolRunStatus = "idle" | "running" | "completed" | "failed";
 
 export type ExecutionStatus =
@@ -111,6 +120,15 @@ export interface ToolCategory {
 
 export interface ToolTypesResponse {
   categories: ToolCategory[];
+}
+
+export interface GuardrailsConfigResponse {
+  valid_domains: string[];
+  default_max_steps: number;
+  default_timeout_seconds: number;
+  domain_max_steps: Record<string, number>;
+  tools_requiring_confirmation: string[];
+  domain_tool_allowlists: Record<string, string[]>;
 }
 
 export interface GuardrailConfig {
