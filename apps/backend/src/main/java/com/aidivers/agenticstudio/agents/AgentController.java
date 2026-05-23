@@ -106,7 +106,7 @@ public class AgentController {
                 .config(tool.getConfigJson() == null ? Collections.emptyMap() : tool.getConfigJson())
                 .enabled(tool.isEnabled())
                 .createdAt(tool.getCreatedAt())
-                .updatedAt(tool.getCreatedAt())
+                .updatedAt(tool.getUpdatedAt())
                 .build();
     }
 
