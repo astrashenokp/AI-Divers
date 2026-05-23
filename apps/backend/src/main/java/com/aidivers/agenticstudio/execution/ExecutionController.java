@@ -57,13 +57,13 @@ public class ExecutionController {
         ChatSession session;
         UUID sessionId = parseSessionId(request.getSessionId());
         if (sessionId != null) {
-            session = chatSessionService.getById(sessionId);
+            session = chatSessionService.getByIdForOwner(sessionId, currentUser);
         } else {
-            session = chatSessionService.create(agentId, SessionSource.STUDIO, "New chat");
+            session = chatSessionService.createForOwner(agentId, SessionSource.STUDIO, "New chat", currentUser);
         }
 
         // Зберігаємо запит юзера
-        messageService.save(session.getId(), MessageRole.USER, request.getMessage());
+        messageService.saveForOwner(session.getId(), MessageRole.USER, request.getMessage(), currentUser);
 
         AgentExecution execution = executionService.start(agentId, session.getId());
 

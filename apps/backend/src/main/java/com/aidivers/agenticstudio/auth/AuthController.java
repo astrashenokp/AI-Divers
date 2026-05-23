@@ -50,4 +50,9 @@ public class AuthController {
                 .tokenType("Bearer")
                 .build();
     }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout() {
+    }
 }
