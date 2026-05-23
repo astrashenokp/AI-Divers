@@ -1,6 +1,7 @@
 "use client";
 
-import { Bot, Home, MessageSquare, Wrench } from "lucide-react";
+import { Bot, Home, LogIn, LogOut, MessageSquare, Wrench } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./AppHeader.module.scss";
@@ -25,6 +26,7 @@ const navItems = [
 
 export function AppHeader() {
   const pathname = usePathname();
+  const { session, isAuthenticated, logout } = useAuth();
 
   return (
     <header className={styles.header}>
@@ -55,6 +57,28 @@ export function AppHeader() {
             </Link>
           );
         })}
+        {isAuthenticated ? (
+          <button
+            className={styles.authButton}
+            title={session?.username}
+            type="button"
+            onClick={() => {
+              void logout();
+            }}
+          >
+            <LogOut size={16} aria-hidden />
+            Вийти
+          </button>
+        ) : (
+          <Link
+            className={styles.navLink}
+            data-active={pathname.startsWith("/auth")}
+            href="/auth"
+          >
+            <LogIn size={16} aria-hidden />
+            Увійти
+          </Link>
+        )}
       </nav>
     </header>
   );

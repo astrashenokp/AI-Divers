@@ -208,6 +208,20 @@ export interface ApiErrorShape {
   timestamp?: string;
 }
 
+export interface AuthRequest {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  tokenType: string;
+}
+
+export interface AuthSession extends AuthResponse {
+  username: string;
+}
+
 export interface BackendHealthResponse {
   status: string;
   service?: string;

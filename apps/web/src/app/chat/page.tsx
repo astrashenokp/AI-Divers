@@ -14,9 +14,10 @@ import { AiDiverGuide } from "@/components/help/AiDiverGuide";
 import { useAgents } from "@/hooks/useAgents";
 import { useAgentExecutionStream } from "@/hooks/useAgentExecutionStream";
 import { useAgentSession } from "@/hooks/useAgentSession";
+import { useAuth } from "@/hooks/useAuth";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { LIVE_TRACKING_EVENTS } from "@/lib/constants";
-import type { ChatMessage, LiveTrackingEvent } from "@/lib/types";
+import type { AgentDraft, ChatMessage, LiveTrackingEvent } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -58,6 +59,28 @@ const toolInstructions: Record<string, string> = {
     "Напишіть нотатку або факт, який потрібно зберегти для поточної сесії.",
   http_request:
     "Опишіть публічний API, метод і дані запиту. Агент попросить підтвердження, якщо це потрібно.",
+};
+
+const domainAgentNames: Record<string, string> = {
+  education: "Освітній асистент",
+  tourism: "Туризм асистент",
+  ecommerce: "E-commerce асистент",
+  general: "Загальний асистент",
+};
+
+const buildDefaultAgentDraft = (context?: ToolContext): AgentDraft => {
+  const domain = context?.domain ?? "general";
+  const toolHint = context?.toolName
+    ? ` Користувач обрав tool ${context.toolName}; врахуй це як бажаний інструмент, якщо він доступний.`
+    : "";
+
+  return {
+    name: domainAgentNames[domain] ?? "Загальний асистент",
+    description: "Автоматично створений агент для першого чату.",
+    systemPrompt: `Ти корисний AI агент для домену ${domain}. Відповідай українською, став уточнювальні питання, якщо даних недостатньо, і використовуй tools лише коли вони справді потрібні.${toolHint}`,
+    modelProvider: "groq",
+    modelName: "llama-3.1-8b-instant",
+  };
 };
 
 const getToolContext = (
@@ -259,8 +282,13 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   const [draftMessage, setDraftMessage] = useState("");
   const [hiddenToolContextKey, setHiddenToolContextKey] = useState<string>();
-  const { selectedAgent, isLoading: isAgentsLoading, error: agentsError } =
-    useAgents();
+  const {
+    selectedAgent,
+    createAgent,
+    isLoading: isAgentsLoading,
+    error: agentsError,
+  } = useAgents();
+  const { session: authSession } = useAuth();
   const {
     session,
     startSession,
@@ -292,15 +320,17 @@ function ChatPageContent() {
 
   const runChatMessage = useCallback(
     async (message: string, options: { forceMock?: boolean } = {}) => {
-      if (!selectedAgent) {
+      if (!authSession && !options.forceMock) {
         setDraftMessage(message);
         return;
       }
 
+      const activeAgent =
+        selectedAgent ?? (await createAgent(buildDefaultAgentDraft(toolContext)));
       const activeSession =
-        session ?? (await startSession(`${selectedAgent.name} test chat`));
+        session ?? (await startSession(`${activeAgent.name} test chat`, activeAgent.id));
       const metadata: Record<string, string> = {};
-      const domain = toolContext?.domain ?? selectedAgent.tools[0]?.category;
+      const domain = toolContext?.domain ?? activeAgent.tools[0]?.category;
 
       if (domain) {
         metadata.domain = domain;
@@ -313,12 +343,22 @@ function ChatPageContent() {
       setDraftMessage("");
       setHiddenToolContextKey(toolContextKey);
       await startExecution(message, {
+        agentId: activeAgent.id,
         sessionId: activeSession.id,
         metadata,
         forceMock: options.forceMock,
       });
     },
-    [selectedAgent, session, startExecution, startSession, toolContext, toolContextKey],
+    [
+      authSession,
+      createAgent,
+      selectedAgent,
+      session,
+      startExecution,
+      startSession,
+      toolContext,
+      toolContextKey,
+    ],
   );
   const latestExecutionEvent = executionEvents.at(-1);
   const guideContext = useMemo<NonNullable<AiDiverGuideProps["guideContext"]>>(
@@ -430,8 +470,20 @@ function ChatPageContent() {
       });
     }
 
+    if (!authSession) {
+      nextMessages.push({
+        id: "auth-required-message",
+        role: "system",
+        content:
+          "Щоб чат міг створити агента, session і Live Tracking, спочатку увійдіть або зареєструйтесь.",
+        createdAt: "now",
+        isError: true,
+      });
+    }
+
     return nextMessages;
   }, [
+    authSession,
     agentsError,
     executionError,
     isStreaming,
@@ -450,7 +502,7 @@ function ChatPageContent() {
   );
 
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
-  const isComposerDisabled = isStreaming || isSessionLoading;
+  const isComposerDisabled = isStreaming || isSessionLoading || !authSession;
 
   const handleNewChat = useCallback(() => {
     if (!selectedAgent || isBusy) {

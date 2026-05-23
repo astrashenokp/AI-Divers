@@ -98,8 +98,10 @@ export const useAgentSession = (agentId?: string) => {
   );
 
   const startSession = useCallback(
-    async (title?: string) => {
-      if (!agentId) {
+    async (title?: string, overrideAgentId?: string) => {
+      const targetAgentId = overrideAgentId ?? agentId;
+
+      if (!targetAgentId) {
         throw new Error("Select an agent before starting a session.");
       }
 
@@ -108,13 +110,13 @@ export const useAgentSession = (agentId?: string) => {
 
       try {
         const session = USE_MOCK_API
-          ? await mockApi.createAgentSession(agentId)
-          : await sessionsApi.createAgentSession(agentId, { title });
+          ? await mockApi.createAgentSession(targetAgentId)
+          : await sessionsApi.createAgentSession(targetAgentId, { title });
 
         executionStoreActions.setSession(session);
         executionStoreActions.setMessages([]);
         executionStoreActions.clearExecutionEvents();
-        setStoredSessionId(agentId, session.id);
+        setStoredSessionId(targetAgentId, session.id);
         return session;
       } catch (error) {
         const apiError = toApiError(error);

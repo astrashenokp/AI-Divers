@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore, useRef } from "react";
 import { USE_MOCK_API } from "../lib/constants";
+import { getAuthSession, subscribeAuthSession } from "../lib/authSession";
 import * as agentsApi from "../lib/agentsApi";
 import * as mockApi from "../lib/mockApi";
 import type { AgentDraft, ApiErrorShape } from "../lib/types";
@@ -21,17 +22,28 @@ export const useAgents = () => {
     getAgentStoreSnapshot,
     getAgentStoreSnapshot,
   );
+  const authSession = useSyncExternalStore(
+    subscribeAuthSession,
+    getAuthSession,
+    () => null,
+  );
 
   const selectedAgent = useMemo(
     () => state.agents.find((agent) => agent.id === state.selectedAgentId),
     [state.agents, state.selectedAgentId],
   );
+  const authToken = authSession?.token;
 
   const refreshAgents = useCallback(async () => {
     agentStoreActions.setLoading(true);
     agentStoreActions.setError(undefined);
 
     try {
+      if (!USE_MOCK_API && !authToken) {
+        agentStoreActions.setAgents([]);
+        return [];
+      }
+
       const agents = USE_MOCK_API
         ? await mockApi.listAgents()
         : await agentsApi.listAgents();
@@ -44,7 +56,7 @@ export const useAgents = () => {
     } finally {
       agentStoreActions.setLoading(false);
     }
-  }, []);
+  }, [authToken]);
 
   const createAgent = useCallback(async (draft: AgentDraft) => {
     agentStoreActions.setLoading(true);
@@ -87,14 +99,22 @@ export const useAgents = () => {
     }
   }, []);
 
-  const initialLoadDone = useRef(false);
+  const lastLoadKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (state.agents.length === 0 && !state.isLoading && !initialLoadDone.current) {
-      initialLoadDone.current = true;
+    const loadKey = USE_MOCK_API ? "mock" : authToken;
+
+    if (!USE_MOCK_API && !authToken) {
+      agentStoreActions.setAgents([]);
+      lastLoadKeyRef.current = undefined;
+      return;
+    }
+
+    if (!state.isLoading && lastLoadKeyRef.current !== loadKey) {
+      lastLoadKeyRef.current = loadKey;
       void refreshAgents();
     }
-  }, [refreshAgents, state.agents.length, state.isLoading]);
+  }, [authToken, refreshAgents, state.isLoading]);
 
   return {
     agents: state.agents,

@@ -78,7 +78,9 @@ export const agentStoreActions = {
       ...currentState,
       agents,
       selectedAgentId:
-        currentState.selectedAgentId ?? agents[0]?.id,
+        agents.some((agent) => agent.id === currentState.selectedAgentId)
+          ? currentState.selectedAgentId
+          : agents[0]?.id,
     }));
   },
 

@@ -88,6 +88,35 @@
   }
 }
 
+.authButton {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(17, 117, 108, 0.22);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    color: #ffffff;
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+}
+
 @media (max-width: 640px) {
   .header {
     gap: 12px;
@@ -103,6 +132,16 @@
   }
 
   .navLink {
+    width: 38px;
+    padding: 0;
+    font-size: 0;
+
+    svg {
+      flex: 0 0 auto;
+    }
+  }
+
+  .authButton {
     width: 38px;
     padding: 0;
     font-size: 0;

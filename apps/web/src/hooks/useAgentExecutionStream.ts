@@ -36,6 +36,7 @@ const toApiError = (error: unknown): ApiErrorShape => ({
 });
 
 export interface StartExecutionOptions {
+  agentId?: string;
   sessionId?: string;
   metadata?: JsonObject;
   forceMock?: boolean;
@@ -57,11 +58,13 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
 
   const startExecution = useCallback(
     async (message: string, options: StartExecutionOptions = {}) => {
-      if (!agentId && !options.forceMock) {
+      const targetAgentId = options.agentId ?? agentId;
+
+      if (!targetAgentId && !options.forceMock) {
         throw new Error("Select an agent before starting execution.");
       }
 
-      const activeAgentId = agentId ?? "mock-agent-id";
+      const activeAgentId = targetAgentId ?? "mock-agent-id";
 
       if (state.isStreaming) {
         stopExecution();

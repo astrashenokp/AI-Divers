@@ -1,4 +1,5 @@
 import { buildApiUrl } from "./apiClient";
+import { getAuthorizationHeader } from "./authSession";
 import type { ApiErrorShape, StreamEventHandlers } from "./types";
 
 export interface PostSseStreamOptions<TRequestBody> {
@@ -109,6 +110,7 @@ export async function connectPostSseStream<TRequestBody>({
       headers: {
         Accept: "text/event-stream",
         "Content-Type": "application/json",
+        ...getAuthorizationHeader(),
         ...headers,
       },
       body: JSON.stringify(body),
