@@ -458,6 +458,11 @@ function ChatPageContent() {
           title={selectedAgent?.name ?? "AI Divers Agent"}
           subtitle="Тестовий чат із видимою активністю агента"
           isStreaming={isStreaming || isAgentsLoading}
+          deployHref={
+            selectedAgent
+              ? `/deploy?agentId=${encodeURIComponent(selectedAgent.id)}`
+              : undefined
+          }
         />
       }
       messages={<ChatMessageList messages={messagesViewModel} />}
