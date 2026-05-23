@@ -439,10 +439,10 @@ function ChatPageContent() {
   );
 
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
-  const isComposerDisabled = isBusy || !selectedAgent;
+  const isComposerDisabled = isBusy;
 
   const handleSubmit = async (message: string) => {
-    await runChatMessage(message);
+    await runChatMessage(message, { forceMock: !selectedAgent });
   };
 
   return (

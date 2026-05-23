@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore, useRef } from "react";
 import { USE_MOCK_API } from "../lib/constants";
 import * as agentsApi from "../lib/agentsApi";
 import * as mockApi from "../lib/mockApi";
@@ -87,8 +87,11 @@ export const useAgents = () => {
     }
   }, []);
 
+  const initialLoadDone = useRef(false);
+
   useEffect(() => {
-    if (state.agents.length === 0 && !state.isLoading) {
+    if (state.agents.length === 0 && !state.isLoading && !initialLoadDone.current) {
+      initialLoadDone.current = true;
       void refreshAgents();
     }
   }, [refreshAgents, state.agents.length, state.isLoading]);

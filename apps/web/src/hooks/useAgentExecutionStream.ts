@@ -57,7 +57,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
 
   const startExecution = useCallback(
     async (message: string, options: StartExecutionOptions = {}) => {
-      if (!agentId) {
+      if (!agentId && !options.forceMock) {
         throw new Error("Select an agent before starting execution.");
       }
 
@@ -84,7 +84,9 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
             eventData,
           );
 
-          executionStoreActions.addExecutionEvent(normalizedEvent);
+          if (eventName !== LIVE_TRACKING_EVENTS.MESSAGE_DELTA) {
+            executionStoreActions.addExecutionEvent(normalizedEvent);
+          }
 
           if (eventName === LIVE_TRACKING_EVENTS.MESSAGE_DELTA) {
             const delta = extractMessageDelta(eventData);
@@ -119,7 +121,7 @@ export const useAgentExecutionStream = (agentId?: string, sessionId?: string) =>
       try {
         if (USE_MOCK_API || options.forceMock) {
           await mockApi.runMockAgentExecutionStream(
-            agentId,
+            agentId ?? "mock-agent-id",
             message,
             handlers,
             abortController.signal,
