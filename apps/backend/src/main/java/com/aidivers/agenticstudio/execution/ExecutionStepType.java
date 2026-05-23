@@ -1,0 +1,13 @@
+package com.aidivers.agenticstudio.execution;
+
+public enum ExecutionStepType {
+    EXECUTION_STARTED,
+    REASONING_STEP,
+    TOOL_CALL_STARTED,
+    TOOL_CALL_FINISHED,
+    GUARDRAIL_BLOCKED,
+    HUMAN_CONFIRMATION_REQUIRED,
+    MESSAGE_DELTA,
+    EXECUTION_COMPLETED,
+    EXECUTION_FAILED
+}

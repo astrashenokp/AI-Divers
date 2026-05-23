@@ -1,3 +1,49 @@
+.toolContext {
+  display: grid;
+  gap: 8px;
+  margin: 14px 20px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 16px;
+  color: var(--foreground);
+  background:
+    linear-gradient(135deg, rgba(240, 253, 250, 0.96), rgba(255, 255, 255, 0.92)),
+    var(--surface);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+
+  strong {
+    color: #0f766e;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  p {
+    color: var(--muted-strong);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+}
+
+.toolContextMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  span {
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border: 1px solid rgba(15, 118, 110, 0.18);
+    border-radius: 999px;
+    color: #0f766e;
+    background: rgba(204, 251, 241, 0.7);
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 11px;
+    font-weight: 900;
+  }
+}
+
 .composer {
   display: grid;
   gap: 10px;
@@ -39,6 +85,11 @@
 }
 
 @media (max-width: 620px) {
+  .toolContext {
+    margin: 10px 12px 0;
+    padding: 12px;
+  }
+
   .composerBox {
     align-items: flex-start;
     flex-direction: column;

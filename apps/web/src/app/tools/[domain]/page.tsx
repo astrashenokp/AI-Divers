@@ -77,7 +77,11 @@ export default async function ToolCategoryPage({
               const ToolIcon = tool.icon;
 
               return (
-                <article className={styles.toolCard} key={tool.name}>
+                <Link
+                  className={styles.toolCard}
+                  href={`/chat?domain=${category.domain}&tool=${encodeURIComponent(tool.name)}`}
+                  key={tool.name}
+                >
                   <div className={styles.toolTitleRow}>
                     <span className={styles.toolIcon}>
                       <ToolIcon size={18} aria-hidden />
@@ -94,7 +98,8 @@ export default async function ToolCategoryPage({
                       доступний у домені
                     </span>
                   )}
-                </article>
+                  <span className={styles.cardAction}>Відкрити в чаті</span>
+                </Link>
               );
             })}
           </div>

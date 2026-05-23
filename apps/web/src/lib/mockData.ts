@@ -4,7 +4,9 @@ import type {
   AgentTool,
   ChatMessage,
   DeploymentSettings,
+  DomainsResponse,
   GuardrailConfig,
+  GuardrailsConfigResponse,
   LiveTrackingEvent,
   ToolType,
   ToolTypesResponse,
@@ -20,6 +22,63 @@ export const mockGuardrails: GuardrailConfig = {
     "save_progress",
     "save_note",
   ],
+};
+
+export const mockDomains: DomainsResponse = {
+  domains: [
+    { id: "ecommerce", label: "E-commerce" },
+    { id: "education", label: "Education" },
+    { id: "tourism", label: "Tourism" },
+    { id: "general", label: "General" },
+  ],
+};
+
+export const mockGuardrailsConfig: GuardrailsConfigResponse = {
+  valid_domains: ["ecommerce", "education", "tourism", "general"],
+  default_max_steps: 10,
+  default_timeout_seconds: 30,
+  domain_max_steps: {
+    ecommerce: 8,
+    education: 10,
+    tourism: 10,
+    general: 6,
+  },
+  tools_requiring_confirmation: ["http_request", "save_progress", "save_note"],
+  domain_tool_allowlists: {
+    ecommerce: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "product_search",
+      "order_status",
+      "check_price",
+    ],
+    education: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "course_search",
+      "course_info",
+      "save_progress",
+    ],
+    tourism: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+      "hotel_search",
+      "itinerary_plan",
+      "get_weather",
+    ],
+    general: [
+      "get_current_time",
+      "search_web",
+      "save_note",
+      "http_request",
+    ],
+  },
 };
 
 export const mockDeploymentSettings: DeploymentSettings = {
@@ -264,13 +323,13 @@ export const mockAgentTools: AgentTool[] = [
 export const mockAgents: Agent[] = [
   {
     id: "agent-general-assistant",
-    name: "General Assistant",
+    name: "Загальний асистент",
     description:
-      "Helps users answer practical questions with shared tools such as time, web search, notes, and guarded HTTP requests.",
+      "Допомагає відповідати на практичні запити за допомогою спільних tools: часу, web search, нотаток і безпечних HTTP-запитів.",
     systemPrompt:
-      "You are a helpful general assistant. Use available tools only when they improve the answer, and explain tool results clearly.",
-    modelProvider: "mock",
-    modelName: "mock-general-assistant",
+      "Ти корисний загальний асистент. Використовуй доступні tools тільки тоді, коли вони покращують відповідь, і пояснюй результати tools чітко.",
+    modelProvider: "demo",
+    modelName: "demo-general-assistant",
     status: "active",
     tools: mockAgentTools,
     guardrails: mockGuardrails,
@@ -280,13 +339,13 @@ export const mockAgents: Agent[] = [
   },
   {
     id: "agent-education-assistant",
-    name: "Education Assistant",
+    name: "Освітній асистент",
     description:
-      "Helps students find courses, understand course details, and track learning progress.",
+      "Допомагає студентам знаходити курси, розуміти деталі навчання і відстежувати прогрес.",
     systemPrompt:
-      "You are an education assistant. Help users find suitable courses and explain learning options clearly.",
-    modelProvider: "mock",
-    modelName: "mock-education-assistant",
+      "Ти освітній асистент. Допомагай користувачам знаходити відповідні курси і чітко пояснюй навчальні опції.",
+    modelProvider: "demo",
+    modelName: "demo-education-assistant",
     status: "draft",
     tools: [],
     guardrails: {
@@ -332,7 +391,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.EXECUTION_STARTED,
     stepNumber: 1,
-    summary: "Started execution for General Assistant.",
+    summary: "Запущено виконання для Загального асистента.",
     status: "running",
     timestamp: now,
   },
@@ -341,7 +400,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.REASONING_STEP,
     stepNumber: 2,
-    summary: "Deciding whether a shared tool is needed.",
+    summary: "Агент вирішує, чи потрібен спільний tool.",
     status: "running",
     timestamp: now,
   },
@@ -350,7 +409,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_STARTED,
     stepNumber: 3,
-    summary: "Calling get_current_time for the requested timezone.",
+    summary: "Виклик get_current_time для потрібного часового поясу.",
     toolName: "get_current_time",
     status: "running",
     timestamp: now,
@@ -363,7 +422,7 @@ export const mockLiveTrackingEvents: LiveTrackingEvent[] = [
     executionId: "execution-demo-1",
     type: LIVE_TRACKING_EVENTS.TOOL_CALL_FINISHED,
     stepNumber: 4,
-    summary: "get_current_time completed successfully.",
+    summary: "get_current_time успішно завершився.",
     toolName: "get_current_time",
     status: "completed",
     timestamp: now,

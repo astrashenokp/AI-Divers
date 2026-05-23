@@ -8,3 +8,9 @@ class AgentState(TypedDict):
     execution_id: str
     step_count: int
     max_steps: int
+    system_prompt: str | None
+    tools: list[str] | None
+    guardrails: dict | None
+    session_id: str | None
+    model_provider: str | None
+    model_name: str | None
