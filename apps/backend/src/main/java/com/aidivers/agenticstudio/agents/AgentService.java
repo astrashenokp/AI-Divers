@@ -22,11 +22,18 @@ public class AgentService {
 
     @Transactional(readOnly = true)
     public List<Agent> findAllByOwner(User owner) {
+        if (owner == null) {
+            return agentRepository.findAll();
+        }
         return agentRepository.findByOwnerId(owner.getId());
     }
 
     @Transactional(readOnly = true)
     public Agent getByIdForOwner(UUID id, User owner) {
+        if (owner == null) {
+            return agentRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("Agent not found: " + id));
+        }
         return agentRepository.findByIdAndOwnerId(id, owner.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Agent not found: " + id));
     }

@@ -51,6 +51,9 @@ public class ChatSessionService {
 
     @Transactional(readOnly = true)
     public ChatSession getByIdForOwner(UUID id, User owner) {
+        if (owner == null) {
+            return getById(id);
+        }
         return chatSessionRepository.findById(id)
                 .filter(session -> session.getAgent().getOwner() != null)
                 .filter(session -> session.getAgent().getOwner().getId().equals(owner.getId()))
