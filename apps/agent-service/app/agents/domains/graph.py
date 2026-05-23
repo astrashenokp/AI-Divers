@@ -33,8 +33,9 @@ from agents.domains.general.prompts import (
 from services.tool_execution_service import execute_tool_call
 from tools.tool_registry import get_available_tools
 
+# .env is at apps/agent-service/.env — 4 levels up from graph.py
 _DOTENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
-load_dotenv(dotenv_path=_DOTENV_PATH)
+load_dotenv(dotenv_path=_DOTENV_PATH, override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,8 @@ async def reason_node(state: AgentState) -> dict:
     model = state.get("model_name") or (
         "gemini-2.5-flash" if provider == "gemini" else GROQ_MODEL
     )
+    if "claude" in model.lower():
+        model = GROQ_MODEL
 
     kwargs = {
         "model": model,
