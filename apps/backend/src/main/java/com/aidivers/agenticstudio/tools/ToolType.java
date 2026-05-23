@@ -19,7 +19,7 @@ public enum ToolType {
 
     HOTEL_SEARCH("hotel_search", "Пошук готелів"),
     ITINERARY_PLAN("itinerary_plan", "План подорожі"),
-    GET_WEATHER("get_weather", "Прогноз погоди"),
+    GET_WEATHER("get_weather", "Прогноз погоди");
 
 
     public final String name;
@@ -41,7 +41,6 @@ public enum ToolType {
             case HOTEL_SEARCH, ITINERARY_PLAN, GET_WEATHER -> "tourism";
             case PRODUCT_SEARCH, ORDER_STATUS, CHECK_PRICE -> "ecommerce";
             case GET_CURRENT_TIME, WEB_SEARCH, SAVE_NOTE, HTTP_REQUEST -> "general";
-            case DATABASE_QUERY -> "general";
         };
     }
 
