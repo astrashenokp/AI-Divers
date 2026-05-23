@@ -258,6 +258,7 @@ function ChatComposerArea({
 function ChatPageContent() {
   const searchParams = useSearchParams();
   const [draftMessage, setDraftMessage] = useState("");
+  const [hiddenToolContextKey, setHiddenToolContextKey] = useState<string>();
   const { selectedAgent, isLoading: isAgentsLoading, error: agentsError } =
     useAgents();
   const {
@@ -281,10 +282,14 @@ function ChatPageContent() {
     refreshHealth,
   } = useBackendHealth();
 
+  const domainParam = searchParams.get("domain");
+  const toolParam = searchParams.get("tool");
+  const toolContextKey = `${domainParam ?? ""}:${toolParam ?? ""}`;
   const toolContext = useMemo(
-    () => getToolContext(searchParams.get("domain"), searchParams.get("tool")),
-    [searchParams],
+    () => getToolContext(domainParam, toolParam),
+    [domainParam, toolParam],
   );
+
   const runChatMessage = useCallback(
     async (message: string, options: { forceMock?: boolean } = {}) => {
       if (!selectedAgent) {
@@ -306,13 +311,14 @@ function ChatPageContent() {
       }
 
       setDraftMessage("");
+      setHiddenToolContextKey(toolContextKey);
       await startExecution(message, {
         sessionId: activeSession.id,
         metadata,
         forceMock: options.forceMock,
       });
     },
-    [selectedAgent, session, startExecution, startSession, toolContext],
+    [selectedAgent, session, startExecution, startSession, toolContext, toolContextKey],
   );
   const latestExecutionEvent = executionEvents.at(-1);
   const guideContext = useMemo<NonNullable<AiDiverGuideProps["guideContext"]>>(
@@ -395,7 +401,11 @@ function ChatPageContent() {
 
   const messagesViewModel = useMemo<ChatMessageViewModel[]>(() => {
     const baseMessages =
-      messages.length > 0 ? messages.map(toMessageViewModel) : mockMessages;
+      messages.length > 0
+        ? messages.map(toMessageViewModel)
+        : session
+          ? []
+          : mockMessages;
     const nextMessages = [...baseMessages];
 
     if (isStreaming && streamedMessage) {
@@ -426,6 +436,7 @@ function ChatPageContent() {
     executionError,
     isStreaming,
     messages,
+    session,
     sessionError,
     streamedMessage,
   ]);
@@ -439,10 +450,19 @@ function ChatPageContent() {
   );
 
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
-  const isComposerDisabled = isBusy || !selectedAgent;
+  const isComposerDisabled = isBusy;
+
+  const handleNewChat = useCallback(() => {
+    if (!selectedAgent || isBusy) {
+      return;
+    }
+
+    setDraftMessage("");
+    void startSession("New chat");
+  }, [isBusy, selectedAgent, startSession]);
 
   const handleSubmit = async (message: string) => {
-    await runChatMessage(message);
+    await runChatMessage(message, { forceMock: !selectedAgent });
   };
 
   return (
@@ -452,6 +472,13 @@ function ChatPageContent() {
           title={selectedAgent?.name ?? "AI Divers Agent"}
           subtitle="Тестовий чат із видимою активністю агента"
           isStreaming={isStreaming || isAgentsLoading}
+          isNewChatDisabled={isBusy || !selectedAgent}
+          onNewChat={selectedAgent ? handleNewChat : undefined}
+          deployHref={
+            selectedAgent
+              ? `/deploy?agentId=${encodeURIComponent(selectedAgent.id)}`
+              : undefined
+          }
         />
       }
       messages={<ChatMessageList messages={messagesViewModel} />}
@@ -468,7 +495,9 @@ function ChatPageContent() {
           guideContext={guideContext}
           isSending={isBusy}
           isDisabled={isComposerDisabled}
-          toolContext={toolContext}
+          toolContext={
+            hiddenToolContextKey === toolContextKey ? undefined : toolContext
+          }
           onDraftChange={setDraftMessage}
           onSubmit={handleSubmit}
         />

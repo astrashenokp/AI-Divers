@@ -9,7 +9,7 @@ app:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/agentic_studio?options=-c%20timezone=UTC
+    url: jdbc:postgresql://localhost:5433/agentic_studio
     username: agentic
     password: agentic
     driver-class-name: org.postgresql.Driver
