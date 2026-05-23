@@ -146,16 +146,16 @@ export const getGuideTrigger = (
     return "backend_unreachable";
   }
 
-  if (latestStatus === "failed" || context.latestErrorMessage) {
-    return "stream_failed";
-  }
-
   if (latestStatus === "blocked") {
     return "guardrail_blocked";
   }
 
   if (latestStatus === "waiting_for_human") {
     return "human_confirmation_required";
+  }
+
+  if (latestStatus === "failed" || context.latestErrorMessage) {
+    return "stream_failed";
   }
 
   if (context.isFirstVisit) {

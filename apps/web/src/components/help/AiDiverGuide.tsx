@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  type GuideActionHandlers,
+  type UseAiDiverGuideOptions,
+  useAiDiverGuide,
+} from "@/hooks/useAiDiverGuide";
 import { HelpCircle } from "lucide-react";
 import { useState } from "react";
 import { AiDiverActionChips, type AiDiverAction } from "./AiDiverActionChips";
@@ -17,6 +22,8 @@ type AiDiverGuideProps = {
   collapsedLabel?: string;
   ariaLabel?: string;
   explainHref?: string;
+  guideActionHandlers?: GuideActionHandlers;
+  guideContext?: UseAiDiverGuideOptions;
   toolsHref?: string;
 };
 
@@ -29,14 +36,34 @@ export function AiDiverGuide({
   onCollapsedChange,
   collapsedLabel = "DiverBot",
   ariaLabel = "DiverBot помічник",
+  guideActionHandlers,
+  guideContext,
   toolsHref = "/tools",
 }: AiDiverGuideProps) {
+  const guide = useAiDiverGuide({
+    context: guideContext,
+    actionHandlers: guideActionHandlers,
+  });
   const [uncontrolledCollapsed, setUncontrolledCollapsed] =
     useState(defaultCollapsed);
   const [isInstructionVisible, setIsInstructionVisible] = useState(false);
-  const collapsed = isCollapsed ?? uncontrolledCollapsed;
+  const usesGuideLogic = guideContext !== undefined;
+  const collapsed = usesGuideLogic
+    ? !guide.isVisible || guide.isCollapsed
+    : isCollapsed ?? uncontrolledCollapsed;
 
   const setCollapsed = (nextCollapsed: boolean) => {
+    if (usesGuideLogic) {
+      if (nextCollapsed) {
+        guide.collapse();
+      } else {
+        guide.expand();
+      }
+
+      onCollapsedChange?.(nextCollapsed);
+      return;
+    }
+
     if (isCollapsed === undefined) {
       setUncontrolledCollapsed(nextCollapsed);
     }
@@ -79,13 +106,28 @@ export function AiDiverGuide({
       onClick: () => setCollapsed(true),
     },
   ];
-  const shouldShowInstruction = actions === undefined && isInstructionVisible;
+  const guideActions: AiDiverAction[] = guide.actions.map((action) => ({
+    id: action.id,
+    label: action.label,
+    onClick: () => {
+      void guide.handleAction(action);
+    },
+  }));
+  const displayedActions = usesGuideLogic
+    ? guideActions
+    : actions ?? defaultActions;
+  const displayedTitle =
+    usesGuideLogic && guide.message ? guide.message.title : title;
+  const displayedBody =
+    usesGuideLogic && guide.message ? guide.message.body : body;
+  const shouldShowInstruction =
+    !usesGuideLogic && actions === undefined && isInstructionVisible;
 
   return (
     <aside className={styles.guide} aria-label={ariaLabel}>
       <AiDiverMascot />
       <div className={styles.content}>
-        <AiDiverBubble title={title} body={body} />
+        <AiDiverBubble title={displayedTitle} body={displayedBody} />
         {shouldShowInstruction ? (
           <div className={styles.instructionPanel}>
             <strong>Як працює чат</strong>
@@ -100,13 +142,13 @@ export function AiDiverGuide({
                 Активність агента і tools буде видно у панелі Live Tracking.
               </li>
               <li>
-                Для категорії “Інше” доступні базові tools: get_current_time,
+                Для категорії &quot;Інше&quot; доступні базові tools: get_current_time,
                 search_web, save_note, http_request.
               </li>
             </ol>
             <p>
               Зараз це демонстраційний UI. Реальне виконання повідомлень і
-              підключення tools до backend пізніше з’єднає integration layer.
+              підключення tools до backend пізніше з&apos;єднає integration layer.
             </p>
             <button
               className={styles.instructionClose}
@@ -117,7 +159,7 @@ export function AiDiverGuide({
             </button>
           </div>
         ) : null}
-        <AiDiverActionChips actions={actions ?? defaultActions} />
+        <AiDiverActionChips actions={displayedActions} />
       </div>
     </aside>
   );
