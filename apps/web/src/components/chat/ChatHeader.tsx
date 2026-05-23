@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, Radio } from "lucide-react";
+import { ArrowLeft, Bot, Radio, Rocket } from "lucide-react";
 import Link from "next/link";
 import styles from "./ChatHeader.module.scss";
 
@@ -6,9 +6,15 @@ type ChatHeaderProps = {
   title: string;
   subtitle: string;
   isStreaming: boolean;
+  deployHref?: string;
 };
 
-export function ChatHeader({ title, subtitle, isStreaming }: ChatHeaderProps) {
+export function ChatHeader({
+  title,
+  subtitle,
+  isStreaming,
+  deployHref,
+}: ChatHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.leftSide}>
@@ -27,10 +33,18 @@ export function ChatHeader({ title, subtitle, isStreaming }: ChatHeaderProps) {
         </div>
       </div>
 
-      <span className={styles.status}>
-        <Radio size={16} aria-hidden />
-        {isStreaming ? "Відповідь у процесі" : "Готово"}
-      </span>
+      <div className={styles.headerActions}>
+        {deployHref ? (
+          <Link className={styles.deployLink} href={deployHref}>
+            <Rocket size={16} aria-hidden />
+            Опублікувати агента
+          </Link>
+        ) : null}
+        <span className={styles.status}>
+          <Radio size={16} aria-hidden />
+          {isStreaming ? "Відповідь у процесі" : "Готово"}
+        </span>
+      </div>
     </header>
   );
 }
