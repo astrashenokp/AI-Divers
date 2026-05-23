@@ -37,6 +37,9 @@ export const getSessionMessagesPath = (sessionId: string) =>
 export const getAgentDeploymentPath = (agentId: string) =>
   `${getAgentPath(agentId)}/deployment`;
 
+export const getAgentDeploymentGeneratePath = (agentId: string) =>
+  `${getAgentDeploymentPath(agentId)}/generate`;
+
 export const getPublicAgentExecutePath = (deploymentSlug: string) =>
   `${PUBLIC_AGENTS_PATH}/${deploymentSlug}/execute`;
 
@@ -45,6 +48,9 @@ export const getPublicWebhookPath = (deploymentSlug: string) =>
 
 export const getPublicWidgetConfigPath = (deploymentSlug: string) =>
   `${PUBLIC_WIDGETS_PATH}/${deploymentSlug}/config`;
+
+export const getPublicWidgetChatPath = (deploymentSlug: string) =>
+  `${PUBLIC_WIDGETS_PATH}/${deploymentSlug}/chat`;
 
 export const LIVE_TRACKING_EVENTS = {
   EXECUTION_STARTED: "execution_started",

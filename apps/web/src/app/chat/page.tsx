@@ -190,8 +190,8 @@ const mockToolEvents: ToolEventViewModel[] = [
   },
   {
     toolName: "search_web",
-    status: "error",
-    output: "Недоступно в тестовому режимі.",
+    status: "success",
+    output: "Повернув короткий контекст для відповіді у демо-режимі.",
   },
 ];
 
@@ -450,7 +450,7 @@ function ChatPageContent() {
   );
 
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
-  const isComposerDisabled = isBusy;
+  const isComposerDisabled = isStreaming || isSessionLoading;
 
   const handleNewChat = useCallback(() => {
     if (!selectedAgent || isBusy) {
@@ -493,7 +493,7 @@ function ChatPageContent() {
           draftMessage={draftMessage}
           guideActionHandlers={guideActionHandlers}
           guideContext={guideContext}
-          isSending={isBusy}
+          isSending={isComposerDisabled}
           isDisabled={isComposerDisabled}
           toolContext={
             hiddenToolContextKey === toolContextKey ? undefined : toolContext

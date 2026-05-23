@@ -47,3 +47,6 @@ htmlcov/
 # Local database files
 *.sqlite3
 *.db
+
+# Local integration output
+tool_types_output.json

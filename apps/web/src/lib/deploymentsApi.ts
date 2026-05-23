@@ -1,7 +1,9 @@
 import {
+  getAgentDeploymentGeneratePath,
   getAgentDeploymentPath,
   getPublicAgentExecutePath,
   getPublicWebhookPath,
+  getPublicWidgetChatPath,
   getPublicWidgetConfigPath,
 } from "./constants";
 import { apiClient } from "./apiClient";
@@ -33,12 +35,27 @@ export const updateDeploymentSettings = (
     deployment,
   );
 
+export const generateDeploymentSettings = (agentId: string) =>
+  apiClient.post<undefined, DeploymentSettings>(
+    getAgentDeploymentGeneratePath(agentId),
+    undefined,
+  );
+
 export const executePublicAgent = (
   deploymentSlug: string,
   request: ExecuteAgentStreamRequest,
 ) =>
   apiClient.post<ExecuteAgentStreamRequest, PublicExecutionResponse>(
     getPublicAgentExecutePath(deploymentSlug),
+    request,
+  );
+
+export const executePublicWidgetChat = (
+  deploymentSlug: string,
+  request: ExecuteAgentStreamRequest,
+) =>
+  apiClient.post<ExecuteAgentStreamRequest, PublicExecutionResponse>(
+    getPublicWidgetChatPath(deploymentSlug),
     request,
   );
 

@@ -14,6 +14,7 @@ import * as realToolsApi from "./toolsApi";
 import * as realGuardrailsApi from "./guardrailsApi";
 import * as realSessionsApi from "./sessionsApi";
 import * as realDeploymentsApi from "./deploymentsApi";
+import * as realRuntimeApi from "./runtimeApi";
 import { checkBackendReachable, getBackendHealth } from "./healthApi";
 
 // ─── Mock API module ──────────────────────────────────────────────────────────
@@ -49,6 +50,9 @@ export const createAgent = (draft: AgentDraft): Promise<Agent> =>
     ? mockApi.createAgent(draft)
     : realAgentsApi.createAgent(draft);
 
+export const getAgent = (agentId: string): Promise<Agent> =>
+  USE_MOCK_API ? mockApi.getAgent(agentId) : realAgentsApi.getAgent(agentId);
+
 export const updateAgent = (agentId: string, draft: AgentDraft): Promise<Agent> =>
   USE_MOCK_API
     ? mockApi.updateAgent(agentId, draft)
@@ -59,14 +63,12 @@ export const updateAgent = (agentId: string, draft: AgentDraft): Promise<Agent> 
 export const listDomains = (): Promise<DomainsResponse> =>
   USE_MOCK_API
     ? mockApi.listDomains()
-    : // Реальний endpoint буде /api/v1/domains — поки немає realDomainsApi, fallback на мок
-      mockApi.listDomains();
+    : realRuntimeApi.listDomains();
 
 export const getGuardrailsConfig = (): Promise<GuardrailsConfigResponse> =>
   USE_MOCK_API
     ? mockApi.getGuardrailsConfig()
-    : // Реальний endpoint /api/v1/guardrails-config — поки немає realGuardrailsConfigApi, fallback
-      mockApi.getGuardrailsConfig();
+    : realRuntimeApi.getGuardrailsConfig();
 
 // ─── Tool types ───────────────────────────────────────────────────────────────
 
@@ -143,10 +145,29 @@ export const updateDeploymentSettings = (
     ? mockApi.updateDeploymentSettings(agentId, deployment)
     : realDeploymentsApi.updateDeploymentSettings(agentId, deployment);
 
+export const generateDeploymentSettings = (
+  agentId: string,
+): Promise<DeploymentSettings> =>
+  USE_MOCK_API
+    ? mockApi.generateDeploymentSettings(agentId)
+    : realDeploymentsApi.generateDeploymentSettings(agentId);
+
 export const getWidgetConfig = (deploymentSlug: string): Promise<WidgetConfig> =>
   USE_MOCK_API
     ? mockApi.getWidgetConfig(deploymentSlug)
     : realDeploymentsApi.getWidgetConfig(deploymentSlug);
+
+export const executePublicAgent = (
+  deploymentSlug: string,
+  request: ExecuteAgentStreamRequest,
+) =>
+  realDeploymentsApi.executePublicAgent(deploymentSlug, request);
+
+export const executePublicWidgetChat = (
+  deploymentSlug: string,
+  request: ExecuteAgentStreamRequest,
+) =>
+  realDeploymentsApi.executePublicWidgetChat(deploymentSlug, request);
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 

@@ -49,6 +49,18 @@ export async function listAgents(): Promise<Agent[]> {
   return clone(agents);
 }
 
+export async function getAgent(agentId: string): Promise<Agent> {
+  await wait(MOCK_DELAY_MS);
+
+  const agent = agents.find((candidate) => candidate.id === agentId);
+
+  if (!agent) {
+    throw new Error("Agent not found.");
+  }
+
+  return clone(agent);
+}
+
 export async function createAgent(draft: AgentDraft): Promise<Agent> {
   await wait(MOCK_DELAY_MS);
 
@@ -221,6 +233,37 @@ export async function updateDeploymentSettings(
   );
 
   return clone(updatedDeployment);
+}
+
+export async function generateDeploymentSettings(
+  agentId: string,
+): Promise<DeploymentSettings> {
+  await wait(MOCK_DELAY_MS);
+
+  const existingAgent = agents.find((agent) => agent.id === agentId);
+  const timestamp = new Date().toISOString();
+  const generatedDeployment: DeploymentSettings = {
+    agentId,
+    deploymentSlug:
+      existingAgent?.deployment.deploymentSlug || `ag-${createId("demo")}`,
+    restEnabled: true,
+    webhookEnabled: false,
+    widgetEnabled: existingAgent?.deployment.widgetEnabled ?? false,
+    publicAccessEnabled: true,
+    updatedAt: timestamp,
+  };
+
+  agents = agents.map((agent) =>
+    agent.id === agentId
+      ? {
+          ...agent,
+          deployment: generatedDeployment,
+          updatedAt: timestamp,
+        }
+      : agent,
+  );
+
+  return clone(generatedDeployment);
 }
 
 export async function getWidgetConfig(
