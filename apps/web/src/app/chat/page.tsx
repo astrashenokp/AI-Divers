@@ -401,7 +401,11 @@ function ChatPageContent() {
 
   const messagesViewModel = useMemo<ChatMessageViewModel[]>(() => {
     const baseMessages =
-      messages.length > 0 ? messages.map(toMessageViewModel) : mockMessages;
+      messages.length > 0
+        ? messages.map(toMessageViewModel)
+        : session
+          ? []
+          : mockMessages;
     const nextMessages = [...baseMessages];
 
     if (isStreaming && streamedMessage) {
@@ -432,6 +436,7 @@ function ChatPageContent() {
     executionError,
     isStreaming,
     messages,
+    session,
     sessionError,
     streamedMessage,
   ]);
@@ -447,6 +452,15 @@ function ChatPageContent() {
   const isBusy = isStreaming || isSessionLoading || isAgentsLoading;
   const isComposerDisabled = isBusy;
 
+  const handleNewChat = useCallback(() => {
+    if (!selectedAgent || isBusy) {
+      return;
+    }
+
+    setDraftMessage("");
+    void startSession("New chat");
+  }, [isBusy, selectedAgent, startSession]);
+
   const handleSubmit = async (message: string) => {
     await runChatMessage(message, { forceMock: !selectedAgent });
   };
@@ -458,6 +472,8 @@ function ChatPageContent() {
           title={selectedAgent?.name ?? "AI Divers Agent"}
           subtitle="Тестовий чат із видимою активністю агента"
           isStreaming={isStreaming || isAgentsLoading}
+          isNewChatDisabled={isBusy || !selectedAgent}
+          onNewChat={selectedAgent ? handleNewChat : undefined}
           deployHref={
             selectedAgent
               ? `/deploy?agentId=${encodeURIComponent(selectedAgent.id)}`

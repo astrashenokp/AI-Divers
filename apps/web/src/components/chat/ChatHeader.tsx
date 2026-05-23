@@ -1,4 +1,6 @@
-import { ArrowLeft, Bot, Radio, Rocket } from "lucide-react";
+"use client";
+
+import { ArrowLeft, Bot, Plus, Radio, Rocket } from "lucide-react";
 import Link from "next/link";
 import styles from "./ChatHeader.module.scss";
 
@@ -7,6 +9,8 @@ type ChatHeaderProps = {
   subtitle: string;
   isStreaming: boolean;
   deployHref?: string;
+  isNewChatDisabled?: boolean;
+  onNewChat?: () => void;
 };
 
 export function ChatHeader({
@@ -14,6 +18,8 @@ export function ChatHeader({
   subtitle,
   isStreaming,
   deployHref,
+  isNewChatDisabled = false,
+  onNewChat,
 }: ChatHeaderProps) {
   return (
     <header className={styles.header}>
@@ -34,6 +40,17 @@ export function ChatHeader({
       </div>
 
       <div className={styles.headerActions}>
+        {onNewChat ? (
+          <button
+            className={styles.newChatButton}
+            type="button"
+            disabled={isNewChatDisabled}
+            onClick={onNewChat}
+          >
+            <Plus size={16} aria-hidden />
+            Новий чат
+          </button>
+        ) : null}
         {deployHref ? (
           <Link className={styles.deployLink} href={deployHref}>
             <Rocket size={16} aria-hidden />
