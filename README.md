@@ -177,4 +177,10 @@ AI-DIversssss/
 
 ## Built by
 
-[Polina Astrashenok](https://github.com/astrashenokp) — hackathon project, 2026
+Hackathon project, 2026
+
+- [Polina Astrashenok](https://github.com/astrashenokp) · [LinkedIn](https://www.linkedin.com/in/polina-astrashenok)
+- [Rinata Abdurakhimova](https://github.com/rinata-abdurakhimova)
+- [Sofia Prutska](https://github.com/sofiaprutskya-03)
+- [Alina Parashchii](https://github.com/Alina8anila)
+- [Stanislav Dubyna](https://github.com/Stas11k)
