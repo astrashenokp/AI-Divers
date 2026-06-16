@@ -2,15 +2,9 @@
 
 > A visual no-code environment for building and deploying autonomous AI agents — no backend code required.
 
-<!-- Add screenshots after running the app:
-![Home Page](docs/screenshots/home.png)
-![Chat with Agent](docs/screenshots/chat.png)
-![Tools Catalog](docs/screenshots/tools.png)
--->
-
 ---
 
-## What is this?
+## Overview
 
 **Agentic Studio** lets you create AI agents that reason step-by-step, use domain-specific tools, and respond entirely in Ukrainian. You pick a domain, configure behavior, attach tools — and watch the agent think, act, and observe in real time.
 
@@ -18,10 +12,34 @@ Built as a hackathon MVP. Three services, one Docker Compose command.
 
 ---
 
+## Screenshots
+
+### Home
+
+![Home Page](docs/screenshots/home.png)
+
+### Tool Catalog
+
+![Tools Catalog](docs/screenshots/tools.png)
+
+### Domain Tools
+
+![Domain Detail — Education](docs/screenshots/tools-domain.png)
+
+### Live Agent Chat
+
+![Chat with live reasoning trace](docs/screenshots/chat.png)
+
+### Auth
+
+![Registration Page](docs/screenshots/auth.png)
+
+---
+
 ## Features
 
 - **Domain-based agents** — E-commerce, Education, Tourism, or General. Each domain gets its own system prompt, tool allowlist, and safety rules
-- **Live reasoning trace** — watch every step the agent takes: Think → Act → Observe → repeat
+- **Live reasoning trace** — watch every step the agent takes: Think → Act → Observe → repeat, in the sidebar panel
 - **Tool registry** — plug in web search, product lookup, hotel search, course info, weather, and more
 - **Guardrails** — per-domain step limits and human confirmation flags for sensitive tools
 - **JWT auth** — registration, login, logout
