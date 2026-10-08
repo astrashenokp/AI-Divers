@@ -184,3 +184,4 @@ Hackathon project, 2026
 - [Sofia Prutska](https://github.com/sofiaprutskya-03)
 - [Alina Parashchii](https://github.com/Alina8anila)
 - [Stanislav Dubyna](https://github.com/Stas11k)
+- [Stanislav Koshynskyi](https://github.com/Stanislav-Koshynskyi)
